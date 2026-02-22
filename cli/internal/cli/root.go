@@ -73,6 +73,7 @@ func init() {
 		newBoardsCmd(),
 		newCleanCmd(),
 		newVersionCmd(),
+		newPkgCmd(),
 	)
 }
 

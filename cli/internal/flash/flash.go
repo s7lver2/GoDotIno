@@ -7,6 +7,7 @@ package flash
 import (
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/godotino/cli/internal/manifest"
@@ -15,14 +16,14 @@ import (
 
 // Options controls the flash operation.
 type Options struct {
-	Port        string // serial port; empty = auto-detect
-	Board       string // override manifest board
-	BuildDir    string // directory with compiled firmware
-	ArduinoCLI  string
-	Verbose     bool
+	Port       string // serial port; empty = auto-detect
+	Board      string // override manifest board
+	BuildDir   string // directory with compiled firmware (.hex)
+	ArduinoCLI string
+	Verbose    bool
 }
 
-// boardFQBN maps short board IDs to FQBNs (shared with build package).
+// boardFQBN maps short board IDs to FQBNs.
 var boardFQBN = map[string]string{
 	"uno":      "arduino:avr:uno",
 	"nano":     "arduino:avr:nano",
@@ -41,9 +42,12 @@ func Run(projectDir string, m *manifest.Manifest, opts Options) error {
 	if board == "" {
 		board = m.Board
 	}
+
+	// Firmware lives in build/.cache (written by arduino-cli compile).
+	// If the caller passes an explicit --build-dir we respect it.
 	buildDir := opts.BuildDir
 	if buildDir == "" {
-		buildDir = m.Build.OutputDir
+		buildDir = filepath.Join(projectDir, m.Build.OutputDir, ".cache")
 	}
 
 	fqbn, ok := boardFQBN[strings.ToLower(board)]
@@ -53,7 +57,7 @@ func Run(projectDir string, m *manifest.Manifest, opts Options) error {
 
 	port := opts.Port
 	if port == "" {
-		ui.Info("Auto-detecting board on serial ports…")
+		ui.Info("Auto-detecting board on serial ports...")
 		detected, err := detectPort()
 		if err != nil {
 			return fmt.Errorf(
@@ -80,7 +84,7 @@ func Run(projectDir string, m *manifest.Manifest, opts Options) error {
 	}
 
 	ui.SectionTitle(fmt.Sprintf("Uploading to %s  [%s]", port, fqbn))
-	sp := ui.NewSpinner("Flashing firmware…")
+	sp := ui.NewSpinner("Flashing firmware...")
 	sp.Start()
 
 	cmd := exec.Command(arduinoCLI, args...)
@@ -118,12 +122,7 @@ func renderFlashError(output, port string) {
 	})
 }
 
-// detectPort returns the first likely Arduino serial port.
-// On Linux: /dev/ttyUSB*, /dev/ttyACM*
-// On macOS: /dev/cu.usbserial*, /dev/cu.usbmodem*
-// On Windows: COMx
-//
-// We shell out to `arduino-cli board list` for reliable cross-platform detection.
+// detectPort returns the first likely Arduino serial port using arduino-cli.
 func detectPort() (string, error) {
 	out, err := exec.Command("arduino-cli", "board", "list").Output()
 	if err != nil {

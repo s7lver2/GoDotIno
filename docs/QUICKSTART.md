@@ -10,11 +10,12 @@ Each project lives in its own folder and can be built with a single command.
 ```bash
 # 1. Install arduino-cli and make sure it is on your PATH
 # 2. Install the GoDotIno CLI
-go install github.com/godotino/cli/cmd/godotino@latest
+git clone https://github.com/s7lver2/GoDotIno && cd GoDotIno && make all && sudo make install
 
 # 3. (Optional) point to a custom package dir or registry
 godotino config set libs_dir ~/my-godotino-libs
-godotino config set registry_url https://raw.githubusercontent.com/s7lver/godotino-pkgs/main/registry.json
+godotino config set core_binary ~/GoDotIno/target/release/godotino
+godotino config set registry_url https://raw.githubusercontent.com/s7lver2/GoDotIno/refs/heads/main/pkg/packages.json
 ```
 
 ---
@@ -78,7 +79,7 @@ func loop() {
 
 ```bash
 godotino build          # transpile + compile
-godotino flash          # upload to connected board
+godotino upload          # upload to connected board
 ```
 
 ---

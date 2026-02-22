@@ -6,7 +6,7 @@
       "author": "godotino-team",
       "latest": "1.0.0",
       "versions": {
-        "1.0.0": "https://raw.githubusercontent.com/s7lver/godotino-pkgs/main/ws2812/1.0.0/godotinolib.toml"
+        "1.0.0": "https://raw.githubusercontent.com/s7lver2/GoDotIno/refs/heads/main/pkg/ws2812/v1.0.0/godotinolib.toml"
       }
     },
     "dht": {
@@ -14,7 +14,7 @@
       "author": "godotino-team",
       "latest": "1.0.0",
       "versions": {
-        "1.0.0": "https://raw.githubusercontent.com/s7lver/godotino-pkgs/main/dht/1.0.0/godotinolib.toml"
+        "1.0.0": "https://raw.githubusercontent.com/s7lver2/GoDotIno/refs/heads/main/pkg/dth/v1.0.0/godotinolib.toml"
       }
     },
     "hcsr04": {
@@ -22,7 +22,7 @@
       "author": "godotino-team",
       "latest": "1.0.0",
       "versions": {
-        "1.0.0": "https://raw.githubusercontent.com/s7lver/godotino-pkgs/main/hcsr04/1.0.0/godotinolib.toml"
+        "1.0.0": "https://raw.githubusercontent.com/s7lver2/GoDotIno/refs/heads/main/pkg/hcsr04/v1.0.0/godotinolib.toml"
       }
     },
     "u8g2": {
@@ -30,7 +30,7 @@
       "author": "godotino-team",
       "latest": "1.0.0",
       "versions": {
-        "1.0.0": "https://raw.githubusercontent.com/s7lver/godotino-pkgs/main/u8g2/1.0.0/godotinolib.toml"
+        "1.0.0": "https://raw.githubusercontent.com/s7lver2/GoDotIno/refs/heads/main/pkg/u8g2/v1.0.0/godotinolib.toml"
       }
     }
   }

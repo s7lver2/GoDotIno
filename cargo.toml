@@ -9,7 +9,7 @@ readme      = "README.md"
 
 # ─── binaries ─────────────────────────────────────────────────
 [[bin]]
-name = "godotino"
+name = "godotino-core"
 path = "src/main.rs"
 
 # ─── library (used by CLI / IDE integrations) ─────────────────

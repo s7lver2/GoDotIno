@@ -1,7 +1,15 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  godotino :: build  (updated)
-//  Passes external package info to godotino-core via --libs-dir and
-//  --packages flags so the transpiler loads the correct godotinolib.toml files.
+//  godotino :: build  (fixed)
+//
+//  THE BUG: arduino-cli compile requires a *sketch directory* — a folder
+//  whose name matches the .ino file inside it.  The old code passed the
+//  project root directly, which never contains a .ino file.
+//
+//  THE FIX: after transpiling, we:
+//    1. Write .cpp files into  build/<project-name>/
+//    2. Generate              build/<project-name>/<project-name>.ino
+//    3. Pass the sketch dir   build/<project-name>/   to arduino-cli
+//    4. Cache .hex/.elf into  build/.cache/
 // ─────────────────────────────────────────────────────────────────────────────
 
 package cli
@@ -34,6 +42,7 @@ type Options struct {
 // Result holds the outputs of a successful build.
 type Result struct {
 	CppFiles    []string
+	SketchDir   string // path to the generated Arduino sketch dir
 	FirmwareHex string
 	Warnings    []string
 }
@@ -44,19 +53,30 @@ func Run(projectDir string, m *manifest.Manifest, opts Options) (*Result, error)
 	if board == "" {
 		board = m.Board
 	}
-	outDir := opts.OutputDir
-	if outDir == "" {
-		outDir = filepath.Join(projectDir, m.Build.OutputDir)
+
+	// Base build directory: <project>/build/
+	baseOutDir := opts.OutputDir
+	if baseOutDir == "" {
+		baseOutDir = filepath.Join(projectDir, m.Build.OutputDir)
 	}
 
-	if err := os.MkdirAll(outDir, 0755); err != nil {
-		return nil, fmt.Errorf("creating output dir: %w", err)
+	// ── Arduino sketch directory ─────────────────────────────────────────────
+	// arduino-cli compile requires a sketch directory whose name matches the
+	// .ino file inside it:  build/<name>/<name>.ino
+	sketchName := sanitizeSketchName(m.Name)
+	if sketchName == "" {
+		sketchName = "sketch"
+	}
+	sketchDir := filepath.Join(baseOutDir, sketchName)
+
+	if err := os.MkdirAll(sketchDir, 0755); err != nil {
+		return nil, fmt.Errorf("creating sketch dir: %w", err)
 	}
 
 	transpiler := core.New(opts.CoreBin, opts.Verbose)
 	if !transpiler.Installed() {
 		return nil, fmt.Errorf(
-			"godotino-core not found — install it or set core_binary in config\n" +
+			"godotino-core not found — install it or set core_binary in config\n"+
 				"  godotino config set core_binary /path/to/godotino-core",
 		)
 	}
@@ -74,8 +94,6 @@ func Run(projectDir string, m *manifest.Manifest, opts Options) (*Result, error)
 	if len(pkgNames) > 0 {
 		ui.SectionTitle(fmt.Sprintf("Transpiling  [board: %s]  [packages: %s]",
 			board, strings.Join(pkgNames, ", ")))
-
-		// Verify each declared package is actually installed
 		for _, name := range pkgNames {
 			if ok, _ := pkgmgr.IsInstalled(name); !ok {
 				return nil, fmt.Errorf(
@@ -88,10 +106,11 @@ func Run(projectDir string, m *manifest.Manifest, opts Options) (*Result, error)
 		ui.SectionTitle(fmt.Sprintf("Transpiling  [board: %s]", board))
 	}
 
-	result := &Result{}
+	result := &Result{SketchDir: sketchDir}
+
 	for _, goFile := range goFiles {
 		base    := strings.TrimSuffix(filepath.Base(goFile), ".go")
-		cppFile := filepath.Join(outDir, base+".cpp")
+		cppFile := filepath.Join(sketchDir, base+".cpp") // write INTO sketch dir
 
 		sp := ui.NewSpinner(fmt.Sprintf("%s → %s", filepath.Base(goFile), filepath.Base(cppFile)))
 		sp.Start()
@@ -118,6 +137,13 @@ func Run(projectDir string, m *manifest.Manifest, opts Options) (*Result, error)
 		ui.Warn(w)
 	}
 
+	// ── Write the .ino stub ──────────────────────────────────────────────────
+	// arduino-cli needs <sketchDir>/<sketchName>.ino to exist.
+	if err := writeInoStub(sketchDir, sketchName, result.CppFiles); err != nil {
+		return nil, fmt.Errorf("writing .ino stub: %w", err)
+	}
+	ui.Step("sketch", fmt.Sprintf("wrote %s/%s.ino", sketchName, sketchName))
+
 	if !opts.Compile {
 		return result, nil
 	}
@@ -134,31 +160,70 @@ func Run(projectDir string, m *manifest.Manifest, opts Options) (*Result, error)
 		arduinoCLI = "arduino-cli"
 	}
 
-	args := []string{"compile", "--fqbn", fqbn, "--build-path", outDir, "--warnings", "all"}
+	// Compile artifacts go into build/.cache/ to keep the sketch dir clean.
+	buildCacheDir := filepath.Join(baseOutDir, ".cache")
+	_ = os.MkdirAll(buildCacheDir, 0755)
+
+	args := []string{
+		"compile",
+		"--fqbn", fqbn,
+		"--build-path", buildCacheDir,
+		"--warnings", "all",
+	}
 	if opts.Verbose {
 		args = append(args, "--verbose")
 	}
-	args = append(args, projectDir)
+	// *** KEY FIX: pass the SKETCH DIR, not the project root ***
+	args = append(args, sketchDir)
 
 	sp := ui.NewSpinner(fmt.Sprintf("arduino-cli compile --fqbn %s", fqbn))
 	sp.Start()
 
 	cmd := exec.Command(arduinoCLI, args...)
-	cmd.Dir = projectDir
-	out, err := cmd.CombinedOutput()
-	if err != nil {
+	cmd.Dir = sketchDir
+	out, cmdErr := cmd.CombinedOutput()
+	if cmdErr != nil {
 		sp.Stop(false, "compilation failed")
 		renderArduinoError(string(out))
 		return result, fmt.Errorf("arduino-cli compile failed")
 	}
-	sp.Stop(true, fmt.Sprintf("firmware written to %s", outDir))
+	sp.Stop(true, fmt.Sprintf("firmware written to %s", buildCacheDir))
 
-	hexFiles, _ := filepath.Glob(filepath.Join(outDir, "*.hex"))
+	hexFiles, _ := filepath.Glob(filepath.Join(buildCacheDir, "*.hex"))
 	if len(hexFiles) > 0 {
 		result.FirmwareHex = hexFiles[0]
 	}
 
 	return result, nil
+}
+
+// writeInoStub creates <sketchDir>/<sketchName>.ino — the required entry
+// point for arduino-cli.  The file name MUST match the directory name.
+func writeInoStub(sketchDir, sketchName string, _ []string) error {
+	const stub = "// Auto-generated by godotino — do not edit.\n" +
+		"// arduino-cli compiles the .cpp files in this directory automatically.\n"
+	return os.WriteFile(filepath.Join(sketchDir, sketchName+".ino"), []byte(stub), 0644)
+}
+
+// sanitizeSketchName converts a project name to a valid Arduino sketch name:
+// only letters, digits, underscores; cannot start with a digit.
+func sanitizeSketchName(name string) string {
+	var sb strings.Builder
+	for i, r := range name {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r == '_':
+			sb.WriteRune(r)
+		case r >= '0' && r <= '9':
+			if i > 0 {
+				sb.WriteRune(r)
+			}
+		default:
+			if sb.Len() > 0 {
+				sb.WriteRune('_')
+			}
+		}
+	}
+	return sb.String()
 }
 
 func newBuildCmd() *cobra.Command {
@@ -181,15 +246,21 @@ func newBuildCmd() *cobra.Command {
 			}
 
 			opts := Options{
-				Board:     board,
-				Compile:   compile,
-				OutputDir: output,
-				Verbose:   verbose,
+				Board:      board,
+				Compile:    compile,
+				OutputDir:  output,
+				Verbose:    verbose,
+				CoreBin:    cfg.CoreBinary,
+				ArduinoCLI: cfg.ArduinoCLI,
+				SourceMap:  m.Build.SourceMap,
 			}
 
-			_, err = Run(dir, m, opts)
+			res, err := Run(dir, m, opts)
 			if err != nil {
 				return err
+			}
+			if res.SketchDir != "" {
+				ui.Info(fmt.Sprintf("Sketch: %s", res.SketchDir))
 			}
 			ui.Success("Build finished!")
 			return nil
@@ -244,11 +315,17 @@ func renderArduinoError(output string) {
 
 func boardFQBN(id string) (string, error) {
 	table := map[string]string{
-		"uno": "arduino:avr:uno", "nano": "arduino:avr:nano", "mega": "arduino:avr:mega",
-		"leonardo": "arduino:avr:leonardo", "micro": "arduino:avr:micro",
-		"due": "arduino:sam:arduino_due_x", "mkr1000": "arduino:samd:mkr1000",
-		"esp32": "esp32:esp32:esp32", "esp8266": "esp8266:esp8266:generic",
-		"pico": "rp2040:rp2040:rpipico", "teensy40": "teensy:avr:teensy40",
+		"uno":      "arduino:avr:uno",
+		"nano":     "arduino:avr:nano",
+		"mega":     "arduino:avr:mega",
+		"leonardo": "arduino:avr:leonardo",
+		"micro":    "arduino:avr:micro",
+		"due":      "arduino:sam:arduino_due_x",
+		"mkr1000":  "arduino:samd:mkr1000",
+		"esp32":    "esp32:esp32:esp32",
+		"esp8266":  "esp8266:esp8266:generic",
+		"pico":     "rp2040:rp2040:rpipico",
+		"teensy40": "teensy:avr:teensy40",
 	}
 	fqbn, ok := table[strings.ToLower(id)]
 	if !ok {

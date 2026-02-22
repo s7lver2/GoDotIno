@@ -4,25 +4,30 @@
 //  Package install directory (priority order):
 //    1. config.json  libs_dir
 //    2. GODOTINO_LIBS environment variable
-//    3. OS default:
-//         Linux/macOS  ~/.local/share/godotino/libs
-//         Windows      %APPDATA%\godotino\libs
+//    3. OS default: ~/.local/share/godotino/libs  (Linux/macOS)
+//                   %APPDATA%\godotino\libs        (Windows)
 //
-//  Registry URL (priority order):
-//    1. config.json  registry_url
-//    2. GODOTINO_REGISTRY environment variable
-//    3. Built-in default (GitHub raw)
+//  Registries (priority order — first registry wins on name collision):
+//    1. GODOTINO_REGISTRY env var  (single URL, prepended)
+//    2. config.json  registry_urls  (ordered list)
+//    3. config.json  registry_url   (legacy single-URL, backward compat)
+//    4. Built-in default (github.com/s7lver/godotino-pkgs)
 //
-//  Signing keys (priority order):
-//    1. config.json  keys_dir / keys_index_url
-//    2. GODOTINO_KEYS / GODOTINO_KEYS_INDEX environment variables
-//    3. OS default / built-in URL
+//  Each registry JSON may include a "key_index_url" field pointing to its
+//  own signing-key index.  The global key index in config is the fallback.
+//
+//  Signature verification uses Ed25519:
+//    - Public keys are PEM-encoded ("PUBLIC KEY" block, raw Ed25519).
+//    - Signature files are fetched from <toml_url>.sig (raw 64-byte binary).
 // ─────────────────────────────────────────────────────────────────────────────
 
 package pkgmgr
 
 import (
+	"crypto/ed25519"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"net/http"
@@ -38,31 +43,25 @@ import (
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
 
-// LibsDir returns the root directory where packages are installed.
-// Reads from config first, then GODOTINO_LIBS env var, then OS default.
 func LibsDir() string {
 	cfg, err := config.Load()
 	if err == nil {
 		return cfg.ResolvedLibsDir()
 	}
-	// Fallback: honour env var or use OS default directly.
 	if env := os.Getenv("GODOTINO_LIBS"); env != "" {
 		return env
 	}
 	return config.Default().ResolvedLibsDir()
 }
 
-// PackageDir returns the versioned directory for a given package.
 func PackageDir(name, version string) string {
 	return filepath.Join(LibsDir(), name, version)
 }
 
-// ManifestPath returns the path to godotinolib.toml for a given package version.
 func ManifestPath(name, version string) string {
 	return filepath.Join(PackageDir(name, version), "godotinolib.toml")
 }
 
-// KeysDir returns the directory where downloaded public signing keys are cached.
 func KeysDir() string {
 	cfg, err := config.Load()
 	if err == nil {
@@ -76,7 +75,6 @@ func KeysDir() string {
 
 // ── InstalledPackage ──────────────────────────────────────────────────────────
 
-// InstalledPackage describes a package on disk.
 type InstalledPackage struct {
 	Name        string
 	Version     string
@@ -86,7 +84,6 @@ type InstalledPackage struct {
 	Path        string
 }
 
-// ListInstalled scans LibsDir and returns all installed packages.
 func ListInstalled() ([]InstalledPackage, error) {
 	root := LibsDir()
 	entries, err := os.ReadDir(root)
@@ -108,16 +105,12 @@ func ListInstalled() ([]InstalledPackage, error) {
 			if !v.IsDir() {
 				continue
 			}
-			manifestPath := filepath.Join(root, name, v.Name(), "godotinolib.toml")
-			if _, err := os.Stat(manifestPath); err != nil {
+			mpath := filepath.Join(root, name, v.Name(), "godotinolib.toml")
+			if _, err := os.Stat(mpath); err != nil {
 				continue
 			}
-			ip := InstalledPackage{
-				Name:    name,
-				Version: v.Name(),
-				Path:    manifestPath,
-			}
-			if data, err := os.ReadFile(manifestPath); err == nil {
+			ip := InstalledPackage{Name: name, Version: v.Name(), Path: mpath}
+			if data, err := os.ReadFile(mpath); err == nil {
 				ip.Description, ip.CppHeader, ip.ArduinoLib = quickParseMeta(string(data))
 			}
 			pkgs = append(pkgs, ip)
@@ -129,31 +122,27 @@ func ListInstalled() ([]InstalledPackage, error) {
 
 // ── Install ───────────────────────────────────────────────────────────────────
 
-// InstallSource describes where to fetch the package from.
 type InstallSource int
 
 const (
-	SourceLocal    InstallSource = iota // local file path to godotinolib.toml
-	SourceURL                           // https:// URL
-	SourceRegistry                      // official registry slug
+	SourceLocal    InstallSource = iota
+	SourceURL
+	SourceRegistry
 )
 
-// InstallOptions controls how a package is installed.
 type InstallOptions struct {
-	Source  string // file path, URL, or registry slug
-	Version string // desired version (optional; overrides what's in the TOML)
+	Source  string
+	Version string
 }
 
-// Install fetches a godotinolib.toml and places it in LibsDir.
-// If VerifySignatures is enabled in config, the package signature is checked
-// against the key downloaded from the key index before writing to disk.
+// Install fetches a godotinolib.toml, optionally verifies its Ed25519
+// signature, and places it in LibsDir.
 func Install(opts InstallOptions) (*InstalledPackage, error) {
 	tomlData, err := fetchTOML(opts.Source)
 	if err != nil {
 		return nil, err
 	}
 
-	// Parse name + version from TOML
 	name, version, description, header, arduinoLib, err := parseTOMLMeta(tomlData)
 	if err != nil {
 		return nil, err
@@ -162,7 +151,7 @@ func Install(opts InstallOptions) (*InstalledPackage, error) {
 		version = opts.Version
 	}
 
-	// Signature verification (if enabled)
+	// Signature verification
 	cfg, _ := config.Load()
 	if cfg != nil && cfg.VerifySignatures {
 		if err := verifySignature(opts.Source, tomlData, cfg); err != nil {
@@ -190,7 +179,6 @@ func Install(opts InstallOptions) (*InstalledPackage, error) {
 	}, nil
 }
 
-// Remove uninstalls a specific version of a package.
 func Remove(name, version string) error {
 	dir := PackageDir(name, version)
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
@@ -199,7 +187,6 @@ func Remove(name, version string) error {
 	if err := os.RemoveAll(dir); err != nil {
 		return fmt.Errorf("removing %s: %w", dir, err)
 	}
-	// Remove parent dir if empty
 	parent := filepath.Join(LibsDir(), name)
 	if entries, _ := os.ReadDir(parent); len(entries) == 0 {
 		os.Remove(parent)
@@ -207,7 +194,6 @@ func Remove(name, version string) error {
 	return nil
 }
 
-// IsInstalled reports whether a package (any version) is installed.
 func IsInstalled(name string) (bool, string) {
 	pkgs, _ := ListInstalled()
 	for _, p := range pkgs {
@@ -218,32 +204,28 @@ func IsInstalled(name string) (bool, string) {
 	return false, ""
 }
 
-// ── Signature verification ────────────────────────────────────────────────────
+// ── Ed25519 Signature verification ───────────────────────────────────────────
 
-// KeyIndexEntry is one entry in the keys/index.json.
+// KeyIndexEntry is one entry in a keys/index.json file.
 type KeyIndexEntry struct {
 	// KeyID is an arbitrary identifier (e.g. "godotino-team").
 	KeyID string `json:"key_id"`
-	// PublicKeyURL is where the PEM/armoured public key can be downloaded.
+	// PublicKeyURL is where the PEM-encoded Ed25519 public key lives.
 	PublicKeyURL string `json:"public_key_url"`
-	// SignatureURLTemplate is a Go template for the signature file URL.
+	// SignatureURLTemplate is the URL pattern for .sig files.
 	// Use "{toml_url}" as placeholder, e.g.:
 	//   "https://raw.githubusercontent.com/.../sigs/{toml_url}.sig"
+	// If empty, the signature URL defaults to <toml_url>.sig
 	SignatureURLTemplate string `json:"signature_url_template"`
 }
 
-// KeyIndex is the top-level object in keys/index.json.
+// KeyIndex is the top-level object in a keys/index.json.
 type KeyIndex struct {
 	Keys []KeyIndexEntry `json:"keys"`
 }
 
-// FetchKeyIndex downloads the key index from the configured URL.
-func FetchKeyIndex() (*KeyIndex, error) {
-	url := config.Default().ResolvedKeysIndexURL()
-	if cfg, err := config.Load(); err == nil {
-		url = cfg.ResolvedKeysIndexURL()
-	}
-
+// FetchKeyIndex downloads the key index from the given URL.
+func FetchKeyIndex(url string) (*KeyIndex, error) {
 	data, err := httpGet(url)
 	if err != nil {
 		return nil, fmt.Errorf("fetching key index from %s: %w", url, err)
@@ -255,7 +237,16 @@ func FetchKeyIndex() (*KeyIndex, error) {
 	return &idx, nil
 }
 
-// EnsureKeyDownloaded downloads and caches a signing key by key ID.
+// FetchGlobalKeyIndex fetches the key index from the configured global URL.
+func FetchGlobalKeyIndex() (*KeyIndex, error) {
+	url := config.Default().ResolvedKeysIndexURL()
+	if cfg, err := config.Load(); err == nil {
+		url = cfg.ResolvedKeysIndexURL()
+	}
+	return FetchKeyIndex(url)
+}
+
+// EnsureKeyDownloaded downloads and caches a public key by key ID.
 // Returns the local file path.
 func EnsureKeyDownloaded(entry KeyIndexEntry) (string, error) {
 	dir := KeysDir()
@@ -264,8 +255,9 @@ func EnsureKeyDownloaded(entry KeyIndexEntry) (string, error) {
 	}
 
 	localPath := filepath.Join(dir, entry.KeyID+".pub")
+	// Re-download if missing; cached keys are trusted on disk.
 	if _, err := os.Stat(localPath); err == nil {
-		return localPath, nil // already cached
+		return localPath, nil
 	}
 
 	data, err := httpGet(entry.PublicKeyURL)
@@ -278,19 +270,318 @@ func EnsureKeyDownloaded(entry KeyIndexEntry) (string, error) {
 	return localPath, nil
 }
 
-// verifySignature is a stub — replace with actual crypto once the key
-// infrastructure is live. For now it ensures the key can be fetched.
-func verifySignature(source, tomlData string, cfg *config.Config) error {
-	idx, err := FetchKeyIndex()
+// verifySignature verifies the Ed25519 signature of a TOML package file.
+//
+// Algorithm:
+//  1. Load all configured key indexes (per-registry + global).
+//  2. For each key entry, fetch (or use cached) public key.
+//  3. Derive the signature URL: use SignatureURLTemplate if set,
+//     otherwise append ".sig" to the toml URL.
+//  4. Fetch the .sig file (raw 64-byte Ed25519 signature).
+//  5. Verify ed25519.Verify(pubkey, []byte(tomlData), sig).
+//  6. Return nil on the first successful verification; error if all fail.
+func verifySignature(tomlURL, tomlData string, cfg *config.Config) error {
+	// Collect all key index URLs to try: per-registry indexes + global fallback.
+	var keyIndexURLs []string
+	for _, regURL := range cfg.ResolvedRegistryURLs() {
+		idx, err := fetchRegistryFromURL(regURL)
+		if err == nil && idx.KeyIndexURL != "" {
+			keyIndexURLs = append(keyIndexURLs, idx.KeyIndexURL)
+		}
+	}
+	keyIndexURLs = append(keyIndexURLs, cfg.ResolvedKeysIndexURL())
+
+	// Deduplicate
+	seen := make(map[string]bool)
+	var uniqueIndexURLs []string
+	for _, u := range keyIndexURLs {
+		if !seen[u] {
+			seen[u] = true
+			uniqueIndexURLs = append(uniqueIndexURLs, u)
+		}
+	}
+
+	var lastErr error
+	for _, idxURL := range uniqueIndexURLs {
+		keyIdx, err := FetchKeyIndex(idxURL)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		for _, entry := range keyIdx.Keys {
+			if err := tryVerifyWithKey(entry, tomlURL, tomlData); err == nil {
+				return nil // verified successfully
+			} else {
+				lastErr = err
+			}
+		}
+	}
+
+	if lastErr != nil {
+		return fmt.Errorf("no key could verify the package signature: %w", lastErr)
+	}
+	return fmt.Errorf("no signing keys found in any key index")
+}
+
+// tryVerifyWithKey attempts to verify tomlData's signature using one key entry.
+func tryVerifyWithKey(entry KeyIndexEntry, tomlURL, tomlData string) error {
+	// 1. Determine signature URL
+	sigURL := tomlURL + ".sig"
+	if entry.SignatureURLTemplate != "" {
+		sigURL = strings.ReplaceAll(entry.SignatureURLTemplate, "{toml_url}", tomlURL)
+	}
+
+	// 2. Fetch the signature (raw bytes)
+	sigBytes, err := httpGet(sigURL)
 	if err != nil {
-		return fmt.Errorf("cannot fetch key index: %w", err)
+		return fmt.Errorf("fetching signature from %s: %w", sigURL, err)
 	}
-	if len(idx.Keys) == 0 {
-		return fmt.Errorf("key index is empty — cannot verify signature")
+	if len(sigBytes) != ed25519.SignatureSize {
+		return fmt.Errorf("invalid signature length %d (expected %d)", len(sigBytes), ed25519.SignatureSize)
 	}
-	// Download the first matching key (production: match by author field).
-	_, err = EnsureKeyDownloaded(idx.Keys[0])
-	return err
+
+	// 3. Fetch (or use cached) public key
+	keyPath, err := EnsureKeyDownloaded(entry)
+	if err != nil {
+		return fmt.Errorf("fetching public key %s: %w", entry.KeyID, err)
+	}
+
+	// 4. Parse PEM-encoded Ed25519 public key
+	pubKey, err := loadEd25519PublicKey(keyPath)
+	if err != nil {
+		return fmt.Errorf("loading public key %s: %w", entry.KeyID, err)
+	}
+
+	// 5. Verify
+	if !ed25519.Verify(pubKey, []byte(tomlData), sigBytes) {
+		return fmt.Errorf("signature invalid for key %s", entry.KeyID)
+	}
+	return nil
+}
+
+// loadEd25519PublicKey parses an Ed25519 public key from a PEM file.
+// Accepts "PUBLIC KEY" PEM blocks (PKIX/DER-encoded).
+func loadEd25519PublicKey(path string) (ed25519.PublicKey, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	block, _ := pem.Decode(data)
+	if block == nil {
+		return nil, fmt.Errorf("no PEM block found in %s", path)
+	}
+	if block.Type != "PUBLIC KEY" {
+		return nil, fmt.Errorf("expected PEM type 'PUBLIC KEY', got %q", block.Type)
+	}
+
+	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("parsing PKIX public key: %w", err)
+	}
+
+	ed, ok := pub.(ed25519.PublicKey)
+	if !ok {
+		return nil, fmt.Errorf("key is not Ed25519 (got %T)", pub)
+	}
+	return ed, nil
+}
+
+// ── Registry ──────────────────────────────────────────────────────────────────
+
+// RegistryIndex is the top-level object in a registry.json file.
+type RegistryIndex struct {
+	// KeyIndexURL optionally points to this registry's own signing-key index.
+	// If set, it is consulted first during signature verification.
+	KeyIndexURL string `json:"key_index_url,omitempty"`
+
+	Packages map[string]RegistryPackage `json:"packages"`
+}
+
+type RegistryPackage struct {
+	Description string            `json:"description"`
+	Author      string            `json:"author"`
+	Latest      string            `json:"latest"`
+	Versions    map[string]string `json:"versions"` // version -> TOML URL
+}
+
+type RegistryEntry struct {
+	Name        string `json:"name"`
+	Version     string `json:"version"`
+	Description string `json:"description"`
+	URL         string `json:"toml_url"`
+	ArduinoLib  string `json:"arduino_lib"`
+	// RegistryURL is the source registry this entry came from.
+	RegistryURL string `json:"registry_url"`
+}
+
+// fetchRegistryFromURL downloads and parses a single registry JSON.
+func fetchRegistryFromURL(url string) (*RegistryIndex, error) {
+	data, err := httpGet(url)
+	if err != nil {
+		return nil, fmt.Errorf("fetching registry from %s: %w", url, err)
+	}
+	var idx RegistryIndex
+	if err := json.Unmarshal(data, &idx); err != nil {
+		return nil, fmt.Errorf("parsing registry JSON from %s: %w", url, err)
+	}
+	return &idx, nil
+}
+
+// FetchAllRegistries fetches and merges packages from all configured registry
+// URLs.  The first registry in the list wins on name collisions.  A warning
+// is printed whenever a package name is shadowed by an earlier registry.
+func FetchAllRegistries() (map[string]RegistryPackage, []string, error) {
+	cfg, _ := config.Load()
+	if cfg == nil {
+		cfg = config.Default()
+	}
+
+	merged := make(map[string]RegistryPackage)   // name → package
+	sourceMap := make(map[string]string)          // name → registry URL that owns it
+	var registryURLs []string                     // which URLs were successfully fetched
+
+	var firstErr error
+	for _, regURL := range cfg.ResolvedRegistryURLs() {
+		idx, err := fetchRegistryFromURL(regURL)
+		if err != nil {
+			ui.Warn(fmt.Sprintf("registry unavailable: %s — %v", regURL, err))
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		registryURLs = append(registryURLs, regURL)
+		for name, pkg := range idx.Packages {
+			if existing, exists := merged[name]; exists {
+				_ = existing // suppress unused warning
+				ui.Warn(fmt.Sprintf(
+					"package %q from %s shadowed by earlier registry %s",
+					name, regURL, sourceMap[name],
+				))
+			} else {
+				merged[name] = pkg
+				sourceMap[name] = regURL
+			}
+		}
+	}
+
+	if len(registryURLs) == 0 {
+		if firstErr != nil {
+			return nil, nil, firstErr
+		}
+		return nil, nil, fmt.Errorf("no registries could be reached")
+	}
+	return merged, registryURLs, nil
+}
+
+// SearchRegistry queries all configured registries for packages matching query.
+func SearchRegistry(query string) ([]RegistryEntry, error) {
+	packages, _, err := FetchAllRegistries()
+	if err != nil {
+		return nil, err
+	}
+
+	q := strings.ToLower(query)
+	var results []RegistryEntry
+	for name, pkg := range packages {
+		if q == "" ||
+			strings.Contains(strings.ToLower(name), q) ||
+			strings.Contains(strings.ToLower(pkg.Description), q) ||
+			strings.Contains(strings.ToLower(pkg.Author), q) {
+
+			results = append(results, RegistryEntry{
+				Name:        name,
+				Version:     pkg.Latest,
+				Description: pkg.Description,
+				URL:         pkg.Versions[pkg.Latest],
+			})
+		}
+	}
+	sort.Slice(results, func(i, j int) bool { return results[i].Name < results[j].Name })
+	return results, nil
+}
+
+// InstallFromRegistry installs a package by name from the merged registry.
+func InstallFromRegistry(name, version string) (*InstalledPackage, error) {
+	packages, _, err := FetchAllRegistries()
+	if err != nil {
+		return nil, err
+	}
+
+	entry, ok := packages[name]
+	if !ok {
+		return nil, fmt.Errorf(
+			"package %q not found in any registry — run `godotino pkg search` to see available packages",
+			name,
+		)
+	}
+
+	ver := version
+	if ver == "" {
+		ver = entry.Latest
+	}
+
+	tomlURL, ok := entry.Versions[ver]
+	if !ok {
+		versions := make([]string, 0, len(entry.Versions))
+		for v := range entry.Versions {
+			versions = append(versions, v)
+		}
+		sort.Strings(versions)
+		return nil, fmt.Errorf(
+			"version %q not found for package %q. Available: %s",
+			ver, name, strings.Join(versions, ", "),
+		)
+	}
+
+	return Install(InstallOptions{Source: tomlURL, Version: ver})
+}
+
+// ── Print helpers ─────────────────────────────────────────────────────────────
+
+func PrintList(pkgs []InstalledPackage) {
+	if len(pkgs) == 0 {
+		ui.Info("No packages installed — run `godotino pkg install <source>` to add one")
+		return
+	}
+
+	ui.SectionTitle(fmt.Sprintf("Installed packages (%d)", len(pkgs)))
+	fmt.Println()
+
+	ui.ColorTitle.Printf("  %-20s  %-10s  %-30s  %s\n", "NAME", "VERSION", "DESCRIPTION", "HEADER")
+	ui.ColorMuted.Println("  " + strings.Repeat("─", 88))
+
+	for _, p := range pkgs {
+		desc := p.Description
+		if len(desc) > 30 {
+			desc = desc[:27] + "..."
+		}
+		ui.ColorKey.Printf("  %-20s", p.Name)
+		ui.ColorNumber.Printf("  %-10s", p.Version)
+		fmt.Printf("  %-30s", desc)
+		ui.ColorMuted.Printf("  %s\n", p.CppHeader)
+	}
+	fmt.Println()
+}
+
+func PrintRegistryResults(entries []RegistryEntry) {
+	if len(entries) == 0 {
+		ui.Info("No packages found matching your query")
+		return
+	}
+
+	ui.ColorTitle.Printf("  %-20s  %-10s  %-40s\n", "NAME", "VERSION", "DESCRIPTION")
+	ui.ColorMuted.Println("  " + strings.Repeat("─", 76))
+
+	for _, e := range entries {
+		ui.ColorKey.Printf("  %-20s", e.Name)
+		ui.ColorNumber.Printf("  %-10s", e.Version)
+		fmt.Printf("  %s\n", e.Description)
+	}
+	fmt.Println()
+
+	ui.Info("Install with: godotino pkg install <name>")
 }
 
 // ── TOML fetch ────────────────────────────────────────────────────────────────
@@ -384,166 +675,14 @@ func parseKV(line string) (key, value string, ok bool) {
 	return
 }
 
-// ── Print helpers ─────────────────────────────────────────────────────────────
-
-// PrintList renders the installed packages to stdout.
-func PrintList(pkgs []InstalledPackage) {
-	if len(pkgs) == 0 {
-		ui.Info("No packages installed — run `godotino pkg install <source>` to add one")
-		return
-	}
-
-	ui.SectionTitle(fmt.Sprintf("Installed packages (%d)", len(pkgs)))
-	fmt.Println()
-
-	ui.ColorTitle.Printf("  %-20s  %-10s  %-30s  %s\n", "NAME", "VERSION", "DESCRIPTION", "HEADER")
-	ui.ColorMuted.Println("  " + strings.Repeat("─", 88))
-
-	for _, p := range pkgs {
-		desc := p.Description
-		if len(desc) > 30 {
-			desc = desc[:27] + "..."
-		}
-		ui.ColorKey.Printf("  %-20s", p.Name)
-		ui.ColorNumber.Printf("  %-10s", p.Version)
-		fmt.Printf("  %-30s", desc)
-		ui.ColorMuted.Printf("  %s\n", p.CppHeader)
-	}
-	fmt.Println()
-}
-
-// ── Registry ──────────────────────────────────────────────────────────────────
-
-// RegistryIndex is the top-level object in registry.json.
-type RegistryIndex struct {
-	Packages map[string]RegistryPackage `json:"packages"`
-}
-
-// RegistryPackage is one entry in the registry.
-type RegistryPackage struct {
-	Description string            `json:"description"`
-	Author      string            `json:"author"`
-	Latest      string            `json:"latest"`
-	Versions    map[string]string `json:"versions"` // version -> TOML URL
-}
-
-// RegistryEntry is a flattened view used by the UI / install flow.
-type RegistryEntry struct {
-	Name        string `json:"name"`
-	Version     string `json:"version"`
-	Description string `json:"description"`
-	URL         string `json:"toml_url"`
-	ArduinoLib  string `json:"arduino_lib"`
-}
-
-// FetchRegistry downloads and parses the registry JSON from the configured URL.
-func FetchRegistry() (*RegistryIndex, error) {
-	url := config.Default().ResolvedRegistryURL()
-	if cfg, err := config.Load(); err == nil {
-		url = cfg.ResolvedRegistryURL()
-	}
-
-	data, err := httpGet(url)
-	if err != nil {
-		return nil, fmt.Errorf("fetching registry from %s: %w", url, err)
-	}
-	var idx RegistryIndex
-	if err := json.Unmarshal(data, &idx); err != nil {
-		return nil, fmt.Errorf("parsing registry JSON: %w", err)
-	}
-	return &idx, nil
-}
-
-// SearchRegistry queries the registry for packages matching the query string.
-func SearchRegistry(query string) ([]RegistryEntry, error) {
-	idx, err := FetchRegistry()
-	if err != nil {
-		return nil, err
-	}
-
-	q := strings.ToLower(query)
-	var results []RegistryEntry
-	for name, pkg := range idx.Packages {
-		if q == "" ||
-			strings.Contains(strings.ToLower(name), q) ||
-			strings.Contains(strings.ToLower(pkg.Description), q) {
-
-			tomlURL := pkg.Versions[pkg.Latest]
-			results = append(results, RegistryEntry{
-				Name:        name,
-				Version:     pkg.Latest,
-				Description: pkg.Description,
-				URL:         tomlURL,
-			})
-		}
-	}
-	sort.Slice(results, func(i, j int) bool { return results[i].Name < results[j].Name })
-	return results, nil
-}
-
-// InstallFromRegistry installs a package by name (optionally at a specific version).
-func InstallFromRegistry(name, version string) (*InstalledPackage, error) {
-	idx, err := FetchRegistry()
-	if err != nil {
-		return nil, err
-	}
-
-	entry, ok := idx.Packages[name]
-	if !ok {
-		return nil, fmt.Errorf("package %q not found in registry — run `godotino pkg search` to see available packages", name)
-	}
-
-	ver := version
-	if ver == "" {
-		ver = entry.Latest
-	}
-
-	tomlURL, ok := entry.Versions[ver]
-	if !ok {
-		versions := make([]string, 0, len(entry.Versions))
-		for v := range entry.Versions {
-			versions = append(versions, v)
-		}
-		sort.Strings(versions)
-		return nil, fmt.Errorf(
-			"version %q not found for package %q. Available versions: %s",
-			ver, name, strings.Join(versions, ", "),
-		)
-	}
-
-	return Install(InstallOptions{Source: tomlURL, Version: ver})
-}
-
-// PrintRegistryResults renders search results.
-func PrintRegistryResults(entries []RegistryEntry) {
-	if len(entries) == 0 {
-		ui.Info("No packages found matching your query")
-		return
-	}
-
-	ui.ColorTitle.Printf("  %-20s  %-10s  %-40s\n", "NAME", "VERSION", "DESCRIPTION")
-	ui.ColorMuted.Println("  " + strings.Repeat("─", 76))
-
-	for _, e := range entries {
-		ui.ColorKey.Printf("  %-20s", e.Name)
-		ui.ColorNumber.Printf("  %-10s", e.Version)
-		fmt.Printf("  %s\n", e.Description)
-	}
-	fmt.Println()
-
-	ui.Info("Install with: godotino pkg install <name>")
-}
-
 // ── Lock file ─────────────────────────────────────────────────────────────────
 
-// LockEntry is one resolved package in godotino.lock.
 type LockEntry struct {
 	Name    string `json:"name"`
 	Version string `json:"version"`
 	Path    string `json:"path"`
 }
 
-// WriteLock writes a godotino.lock file from the resolved packages.
 func WriteLock(projectDir string, pkgs []InstalledPackage) error {
 	entries := make([]LockEntry, len(pkgs))
 	for i, p := range pkgs {
@@ -556,7 +695,6 @@ func WriteLock(projectDir string, pkgs []InstalledPackage) error {
 	return os.WriteFile(filepath.Join(projectDir, "godotino.lock"), append(data, '\n'), 0644)
 }
 
-// ReadLock reads a godotino.lock file.
 func ReadLock(projectDir string) ([]LockEntry, error) {
 	data, err := os.ReadFile(filepath.Join(projectDir, "godotino.lock"))
 	if os.IsNotExist(err) {

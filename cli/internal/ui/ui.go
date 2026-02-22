@@ -57,6 +57,9 @@ func termWidth() int {
 }
 
 func hline(width int, ch string) string {
+	if width <= 0 {
+		return ""
+	}
 	return strings.Repeat(ch, width)
 }
 
@@ -88,12 +91,12 @@ func Box(title, content string, titleColor *color.Color) {
 	// content lines
 	for _, line := range strings.Split(content, "\n") {
 		// pad/truncate
-		pad := inner - len(stripANSI(line))
+		pad := inner - len(stripANSI(line)) - 1 // -1 for leading space
 		if pad < 0 {
 			pad = 0
 		}
 		ColorTBBorder.Fprint(os.Stderr, "│")
-		fmt.Fprint(os.Stderr, " "+line+strings.Repeat(" ", pad-1))
+		fmt.Fprint(os.Stderr, " "+line+strings.Repeat(" ", pad))
 		ColorTBBorder.Fprintln(os.Stderr, "│")
 	}
 
@@ -171,12 +174,12 @@ func Traceback(errType, errMsg string, frames []Frame) {
 	sb.Reset()
 
 	printBorderLine := func(content string) {
-		pad := inner - len(stripANSI(content))
+		pad := inner - len(stripANSI(content)) - 1 // -1 for leading space
 		if pad < 0 {
 			pad = 0
 		}
 		ColorTBBorder.Fprint(os.Stderr, "│")
-		fmt.Fprint(os.Stderr, " "+content+strings.Repeat(" ", pad-1))
+		fmt.Fprint(os.Stderr, " "+content+strings.Repeat(" ", pad))
 		ColorTBBorder.Fprintln(os.Stderr, "│")
 	}
 
@@ -252,31 +255,7 @@ func PrintConfig(title string, entries []ConfigEntry, raw bool) {
 		return
 	}
 
-	w := termWidth()
-	inner := w - 2
-
-	// header
-	ColorTBBorder.Fprint(os.Stdout, "╭"+hline(2, "─"))
-	ColorTitle.Fprint(os.Stdout, " "+title+" ")
-	ColorTBBorder.Fprintln(os.Stdout, hline(inner-len(title)-4, "─")+"╮")
-
-	printLine := func(content string) {
-		pad := inner - len(stripANSI(content))
-		if pad < 0 {
-			pad = 0
-		}
-		ColorTBBorder.Fprint(os.Stdout, "│")
-		fmt.Fprint(os.Stdout, " "+content+strings.Repeat(" ", pad-1))
-		ColorTBBorder.Fprintln(os.Stdout, "│")
-	}
-	printEmpty := func() {
-		ColorTBBorder.Fprint(os.Stdout, "│")
-		fmt.Fprint(os.Stdout, strings.Repeat(" ", inner))
-		ColorTBBorder.Fprintln(os.Stdout, "│")
-	}
-
-	_ = printEmpty
-
+	// ── Compute key column width ─────────────────────────────────────────────
 	keyWidth := 0
 	for _, e := range entries {
 		if len(e.Key) > keyWidth {
@@ -284,15 +263,63 @@ func PrintConfig(title string, entries []ConfigEntry, raw bool) {
 		}
 	}
 
+	// Build all lines first so we can measure the widest one.
+	type renderedLine struct {
+		display string // with ANSI colours
+		plain   string // stripped, for width calculation
+	}
+	lines := make([]renderedLine, 0, len(entries))
 	for _, e := range entries {
 		keyStr := ColorKey.Sprint(fmt.Sprintf("%-*s", keyWidth, e.Key))
 		sep := ColorMuted.Sprint("  =  ")
 		valStr := formatConfigValue(e.Value)
-		line := keyStr + sep + valStr
+		display := keyStr + sep + valStr
+		plain := fmt.Sprintf("%-*s  =  %v", keyWidth, e.Key, e.Value)
 		if e.Comment != "" {
-			line += "  " + ColorComment.Sprint("# "+e.Comment)
+			comment := "  # " + e.Comment
+			display += ColorComment.Sprint(comment)
+			plain += comment
 		}
-		printLine(line)
+		lines = append(lines, renderedLine{display: display, plain: plain})
+	}
+
+	// inner width = max(terminal width − 2, longest line + 2 side spaces)
+	minInner := len(title) + 6 // header must fit the title at minimum
+	for _, l := range lines {
+		if n := len(l.plain) + 2; n > minInner {
+			minInner = n
+		}
+	}
+	w := termWidth()
+	inner := w - 2
+	if minInner > inner {
+		inner = minInner
+	}
+
+	// ── Header ───────────────────────────────────────────────────────────────
+	ColorTBBorder.Fprint(os.Stdout, "╭"+hline(2, "─"))
+	ColorTitle.Fprint(os.Stdout, " "+title+" ")
+	ColorTBBorder.Fprintln(os.Stdout, hline(inner-len(title)-4, "─")+"╮")
+
+	printLine := func(rl renderedLine) {
+		// 1 space before content + 1 space after = 2 side margins
+		pad := inner - len(rl.plain) - 1 // -1 for the leading space
+		if pad < 0 {
+			pad = 0
+		}
+		ColorTBBorder.Fprint(os.Stdout, "│")
+		fmt.Fprint(os.Stdout, " "+rl.display+strings.Repeat(" ", pad))
+		ColorTBBorder.Fprintln(os.Stdout, "│")
+	}
+	printEmpty := func() {
+		ColorTBBorder.Fprint(os.Stdout, "│")
+		fmt.Fprint(os.Stdout, strings.Repeat(" ", inner))
+		ColorTBBorder.Fprintln(os.Stdout, "│")
+	}
+	_ = printEmpty
+
+	for _, l := range lines {
+		printLine(l)
 	}
 
 	ColorTBBorder.Fprintln(os.Stdout, "╰"+hline(inner, "─")+"╯")

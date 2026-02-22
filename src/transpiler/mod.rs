@@ -438,6 +438,29 @@ impl Transpiler {
                     return Err(GodotinoError::codegen(
                         format!("no mapping for {}.{}", canon, field)));
                 }
+                // ── Chained: pkg.SubObj.Method(args)  e.g. arduino.Serial.Begin(9600) ──
+                // Detect Select { expr: Select { Ident(pkg), sub_obj }, method }
+                // and delegate to the sub-package (sub_obj lowercased) if registered.
+                if let Expr::Select { expr: inner_expr, field: sub_obj, .. } = expr.as_ref() {
+                    if let Expr::Ident { name: pkg_alias, .. } = inner_expr.as_ref() {
+                        // Only activate when the alias is a known imported package.
+                        if self.pkg_map.contains_key(pkg_alias.as_str()) {
+                            let sub_canon = sub_obj.to_lowercase();
+                            if let Some(sub_pkg) = self.rt.pkg(&sub_canon) {
+                                if let Some(fmap) = sub_pkg.functions.get(field.as_str()) {
+                                    return Ok(fmap.apply(&arg_strs));
+                                }
+                            }
+                            // Sub-package unknown — emit a direct C++ object call so the
+                            // compiler gets something valid (e.g. Serial.Begin(...)).
+                            if self.cfg.passthrough_unknown {
+                                return Ok(format!("{}.{}({})", sub_obj, field, arg_strs.join(", ")));
+                            }
+                            return Err(GodotinoError::codegen(
+                                format!("no mapping for {}.{}.{}", pkg_alias, sub_obj, field)));
+                        }
+                    }
+                }
                 let obj = self.emit_expr(expr)?;
                 Ok(format!("{}.{}({})", obj, field, arg_strs.join(", ")))
             }

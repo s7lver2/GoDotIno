@@ -29,6 +29,7 @@ LDFLAGS     := -ldflags "-s -w \
   -X $(MODULE)/internal/cli.BuildDate=$(DATE)"
 # Directories
 BUILD_DIR   := dist
+C_BUILD_DIR   := target/release
 CLI_DIR     := cli/cmd/godotino
 CORE_DIR    := .  # path to Cargo.toml (relative to this Makefile)
 # Install prefix
@@ -43,7 +44,7 @@ PLATFORMS   := \
   windows/amd64
 # ── Default target ────────────────────────────────────────────────────────────
 .PHONY: all
-all: install-arduino build build-core  ## Build CLI and Rust core
+all: clean install-arduino build build-core install-all configure  ## Build CLI and Rust core
 # ── Dependences ───────────────────────────────────────────────────────────────
 .PHONY: install-arduino
 install-arduino: ## Install Arduino CLI locally
@@ -70,22 +71,23 @@ build-core:  ## Build the godotino-core Rust binary
 	@cd $(CORE_DIR) && cargo build --release
 	@mkdir -p $(BUILD_DIR)
 	@cp $(CORE_DIR)/target/release/godotino $(BUILD_DIR)/$(CORE_BINARY) 2>/dev/null || \
-	  cp $(CORE_DIR)/target/release/godotino.exe $(BUILD_DIR)/$(CORE_BINARY).exe 2>/dev/null || true
+	   cp $(CORE_DIR)/target/release/godotino.exe $(BUILD_DIR)/$(CORE_BINARY).exe 2>/dev/null || true
 	@echo "  OK  $(BUILD_DIR)/$(CORE_BINARY)"
 # ── Install ───────────────────────────────────────────────────────────────────
 .PHONY: install
 install: build  ## Install godotino CLI to $(BINDIR)
 	@echo "  INSTALL   $(BINDIR)/$(BINARY)"
-	@install -d $(BINDIR)
-	@install -m 0755 $(BUILD_DIR)/$(BINARY) $(BINDIR)/$(BINARY)
+	@sudo install -d $(BINDIR)
+	@sudo install -m 0755 $(BUILD_DIR)/$(BINARY) $(BINDIR)/$(BINARY)
 	@echo "  ✓  godotino installed to $(BINDIR)/$(BINARY)"
 	@echo "     Run: godotino --help"
 .PHONY: install-all
 install-all: build build-core  ## Install CLI + core to $(BINDIR)
 	@$(MAKE) install
 	@echo "  INSTALL   $(BINDIR)/$(CORE_BINARY)"
-	@install -m 0755 $(BUILD_DIR)/$(CORE_BINARY) $(BINDIR)/$(CORE_BINARY)
+	@sudo install -m 0755 $(C_BUILD_DIR)/$(CORE_BINARY) $(BINDIR)/$(CORE_BINARY)
 	@echo "  ✓  godotino-core installed to $(BINDIR)/$(CORE_BINARY)"
+	@echo "  ✓  Rembember to run godotino config set core_binary $(BINDIR)/$(CORE_BINARY)"
 .PHONY: install-user
 install-user: build  ## Install godotino CLI to ~/bin (no sudo)
 	@mkdir -p $(HOME)/bin
@@ -97,6 +99,11 @@ install-user: build  ## Install godotino CLI to ~/bin (no sudo)
 uninstall:  ## Remove installed binaries
 	@rm -f $(BINDIR)/$(BINARY) $(BINDIR)/$(CORE_BINARY)
 	@echo "  ✓  Uninstalled"
+.PHONY: configure
+configure:
+	@godotino config set libs_dir "~/my-godotino-libs"
+	@godotino config set core_binary $(BINDIR)/$(CORE_BINARY)
+	@godotino config set registry_url "https://raw.githubusercontent.com/s7lver2/GoDotIno/refs/heads/main/pkg/packages.json"
 # ── Release (cross-compile) ───────────────────────────────────────────────────
 .PHONY: release
 release:  ## Cross-compile for all platforms into dist/
