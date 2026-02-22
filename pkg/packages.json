@@ -14,7 +14,7 @@
       "author": "godotino-team",
       "latest": "1.0.0",
       "versions": {
-        "1.0.0": "https://raw.githubusercontent.com/s7lver2/GoDotIno/refs/heads/main/pkg/dth/v1.0.0/godotinolib.toml"
+        "1.0.0": "https://raw.githubusercontent.com/s7lver2/GoDotIno/refs/heads/main/pkg/dht/v1.0.0/godotinolib.toml"
       }
     },
     "hcsr04": {
