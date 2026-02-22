@@ -29,7 +29,7 @@
 
 <br>
 
-GoDotIno is a framework that lets you write Arduino firmware in **Go** and automatically transpiles it to **C++**, ready to flash to your favourite Arduino-compatible board.
+tsuki is a framework that lets you write Arduino firmware in **Go** and automatically transpiles it to **C++**, ready to flash to your favourite Arduino-compatible board.
 
 ---
 
@@ -39,8 +39,8 @@ GoDotIno is a framework that lets you write Arduino firmware in **Go** and autom
 ### Linux / macOS (Recommended)
 
 ```bash
-git clone https://github.com/godotino/godotino
-cd godotino
+git clone https://github.com/tsuki/tsuki
+cd tsuki
 
 # Build core (Rust) + CLI (Go)
 make all
@@ -77,14 +77,14 @@ make install-user     # installs to ~/bin  — no sudo required
 <a id="commands"></a>
 <img src="https://readme-typing-svg.herokuapp.com?font=Lexend+Giga&size=22&pause=1000&color=CCA9DD&vCenter=true&width=435&height=25&lines=COMMANDS" width="400"/>
 
-### `godotino init`
+### `tsuki init`
 
 Scaffold a new project in the current directory or a named subdirectory.
 
 ```bash
-godotino init
-godotino init my-robot
-godotino init my-robot --board esp32
+tsuki init
+tsuki init my-robot
+tsuki init my-robot --board esp32
 ```
 
 Creates the following structure:
@@ -99,39 +99,39 @@ my-robot/
 
 ---
 
-### `godotino build`
+### `tsuki build`
 
 Transpile Go → C++, and optionally compile with `arduino-cli`.
 
 ```bash
-godotino build
-godotino build --board esp32
-godotino build --compile                   # also invoke arduino-cli compile
-godotino build --compile --output dist/
-godotino build --source-map                # emit #line pragmas for IDE mapping
+tsuki build
+tsuki build --board esp32
+tsuki build --compile                   # also invoke arduino-cli compile
+tsuki build --compile --output dist/
+tsuki build --source-map                # emit #line pragmas for IDE mapping
 ```
 
 ---
 
-### `godotino upload`
+### `tsuki upload`
 
 Upload compiled firmware to a connected board. Auto-detects the port if omitted.
 
 ```bash
-godotino upload
-godotino upload --port /dev/ttyUSB0
-godotino upload --port COM3 --board uno
+tsuki upload
+tsuki upload --port /dev/ttyUSB0
+tsuki upload --port COM3 --board uno
 ```
 
 ---
 
-### `godotino check`
+### `tsuki check`
 
 Validate all source files without producing output. Renders rich tracebacks on error.
 
 ```bash
-godotino check
-godotino check --board esp32
+tsuki check
+tsuki check --board esp32
 ```
 
 Example output:
@@ -154,28 +154,28 @@ TranspileError: undefined function `Delay` — did you mean `arduino.Delay`?
 
 ---
 
-### `godotino config`
+### `tsuki config`
 
 Get or set persistent CLI configuration with a styled display panel.
 
 ```bash
-godotino config show                                    # show all settings
-godotino config show --raw                              # raw key=value output
+tsuki config show                                    # show all settings
+tsuki config show --raw                              # raw key=value output
 
-godotino config set default_board esp32
-godotino config set arduino_cli /usr/local/bin/arduino-cli
-godotino config set verbose true
-godotino config set default_baud 115200
+tsuki config set default_board esp32
+tsuki config set arduino_cli /usr/local/bin/arduino-cli
+tsuki config set verbose true
+tsuki config set default_baud 115200
 
-godotino config get default_board
-godotino config get default_board --raw
+tsuki config get default_board
+tsuki config get default_board --raw
 
-godotino config path                                    # print config file location
+tsuki config path                                    # print config file location
 ```
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `core_binary` | *(auto)* | Path to `godotino-core` binary |
+| `core_binary` | *(auto)* | Path to `tsuki-core` binary |
 | `arduino_cli` | `arduino-cli` | Path to `arduino-cli` |
 | `default_board` | `uno` | Default target board |
 | `default_baud` | `9600` | Default serial baud rate |
@@ -183,17 +183,17 @@ godotino config path                                    # print config file loca
 | `verbose` | `false` | Verbose output |
 | `auto_detect` | `true` | Auto-detect connected boards |
 
-> Config is stored at `~/.config/godotino/config.json`
+> Config is stored at `~/.config/tsuki/config.json`
 
 ---
 
 ### Other commands
 
 ```bash
-godotino boards list      # list all supported boards with specs
-godotino boards detect    # detect boards connected via USB
-godotino clean            # remove the build/ directory
-godotino version          # print CLI + core version info
+tsuki boards list      # list all supported boards with specs
+tsuki boards detect    # detect boards connected via USB
+tsuki clean            # remove the build/ directory
+tsuki version          # print CLI + core version info
 ```
 
 **Global flags** available on all commands:
@@ -255,7 +255,7 @@ godotino version          # print CLI + core version info
 <a id="boards"></a>
 <img src="https://readme-typing-svg.herokuapp.com?font=Lexend+Giga&size=22&pause=1000&color=CCA9DD&vCenter=true&width=435&height=25&lines=SUPPORTED+BOARDS" width="430"/>
 
-Run `godotino boards list` for the full table with FQBN and memory specs.
+Run `tsuki boards list` for the full table with FQBN and memory specs.
 
 | ID | Name | CPU | Flash | RAM |
 |----|------|-----|-------|-----|
@@ -355,18 +355,18 @@ func loop() {
 User
  │
  ▼
-godotino (Go CLI)              ← thin orchestrator
+tsuki (Go CLI)              ← thin orchestrator
  ├── internal/cli/             ← cobra commands (init, build, upload, check, config…)
  ├── internal/manifest/        ← goduino.json load / save
- ├── internal/config/          ← ~/.config/godotino/config.json
- ├── internal/core/            ← shell-out to godotino-core
+ ├── internal/config/          ← ~/.config/tsuki/config.json
+ ├── internal/core/            ← shell-out to tsuki-core
  ├── internal/build/           ← transpile pipeline + arduino-cli compile
  ├── internal/flash/           ← arduino-cli upload
  ├── internal/check/           ← source validation + rich report
  └── internal/ui/              ← rich terminal output (tracebacks, config panels, spinners)
  │
  ▼
-godotino-core (Rust)           ← Go → C++ transpiler (lexer → parser → AST → codegen)
+tsuki-core (Rust)           ← Go → C++ transpiler (lexer → parser → AST → codegen)
  │
  ▼
 arduino-cli                    ← compile .cpp → .hex / .bin / .uf2  +  flash to board
@@ -375,7 +375,7 @@ arduino-cli                    ← compile .cpp → .hex / .bin / .uf2  +  flash
 Board  ✓
 ```
 
-The CLI never re-implements the transpiler — all source transformation is delegated to `godotino-core`.
+The CLI never re-implements the transpiler — all source transformation is delegated to `tsuki-core`.
 
 <div align="right"><a href="#-write-in-go-upload-in-c"><kbd> <br> 🡅 <br> </kbd></a></div>
 

@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  godotino :: parser :: ast
-//  Abstract Syntax Tree for the Go subset supported by godotino.
+//  tsuki :: parser :: ast
+//  Abstract Syntax Tree for the Go subset supported by tsuki.
 // ─────────────────────────────────────────────────────────────────────────────
 
 use crate::error::Span;

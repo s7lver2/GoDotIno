@@ -1,20 +1,20 @@
 [package]
-name        = "godotino"
+name        = "tsuki"
 version     = "0.1.0"
 edition     = "2021"
-description = "Go-to-Arduino C++ transpiler core"
+description = "Arduino Framework"
 license     = "MIT"
-authors     = ["godotino Contributors", "s7lver"]
+authors     = ["tsuki Contributors", "s7lver"]
 readme      = "README.md"
 
 # ─── binaries ─────────────────────────────────────────────────
 [[bin]]
-name = "godotino-core"
+name = "tsuki-core"
 path = "src/main.rs"
 
 # ─── library (used by CLI / IDE integrations) ─────────────────
 [lib]
-name = "godotino_core"
+name = "tsuki_core"
 path = "src/lib.rs"
 
 # ─── dependencies ─────────────────────────────────────────────

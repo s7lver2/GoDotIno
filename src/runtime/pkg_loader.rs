@@ -1,25 +1,25 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  godotino :: runtime :: pkg_loader
+//  tsuki :: runtime :: pkg_loader
 //
-//  Loads external library packages from `godotinolib.toml` files on disk.
+//  Loads external library packages from `tsukilib.toml` files on disk.
 //  These files live inside each downloaded library directory and describe
 //  the Go→C++ mapping for that library.
 //
-//  Directory layout (installed at ~/.local/share/godotino/libs/<name>/<ver>/):
+//  Directory layout (installed at ~/.local/share/tsuki/libs/<name>/<ver>/):
 //
 //      ws2812/
 //      └── 1.0.0/
-//          ├── godotinolib.toml   ← mapping descriptor (this format)
+//          ├── tsukilib.toml   ← mapping descriptor (this format)
 //          └── src/
 //              └── ws2812.h       ← vendored C++ header (optional)
 //
-//  godotinolib.toml format:
+//  tsukilib.toml format:
 //
 //      [package]
 //      name        = "ws2812"
 //      version     = "1.0.0"
 //      description = "WS2812 NeoPixel driver"
-//      author      = "godotino-team"
+//      author      = "tsuki-team"
 //      cpp_header  = "Adafruit_NeoPixel.h"   # injected as #include
 //      arduino_lib = "Adafruit NeoPixel"      # installed via arduino-cli
 //
@@ -46,12 +46,12 @@ use std::fs;
 
 use serde::{Deserialize, Serialize};
 
-use crate::error::{GodotinoError, Result};
+use crate::error::{tsukiError, Result};
 use crate::runtime::{FnMap, PkgMap};
 
 // ── TOML schema ───────────────────────────────────────────────────────────────
 
-/// Root of a `godotinolib.toml` file.
+/// Root of a `tsukilib.toml` file.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct LibManifest {
     pub package:  LibPackage,
@@ -77,7 +77,7 @@ pub struct LibPackage {
     pub cpp_header:  Option<String>,
     /// The exact arduino-cli library name to install (e.g. `"Adafruit NeoPixel"`).
     pub arduino_lib: Option<String>,
-    /// Min godotino-core version required (semver, optional).
+    /// Min tsuki-core version required (semver, optional).
     pub requires_core: Option<String>,
     /// C++ class name for global variable declarations (emitted as pointer).
     pub cpp_class: Option<String>,
@@ -115,10 +115,10 @@ pub struct LoadedLib {
     pub aliases:     Vec<String>,
 }
 
-/// Load a library from a `godotinolib.toml` file.
+/// Load a library from a `tsukilib.toml` file.
 pub fn load_from_file(path: &Path) -> Result<LoadedLib> {
     let raw = fs::read_to_string(path).map_err(|e| {
-        GodotinoError::codegen(format!("cannot read {}: {}", path.display(), e))
+        tsukiError::codegen(format!("cannot read {}: {}", path.display(), e))
     })?;
     load_from_str(&raw, path)
 }
@@ -126,8 +126,8 @@ pub fn load_from_file(path: &Path) -> Result<LoadedLib> {
 /// Parse a library from a TOML string (path is used only for error messages).
 pub fn load_from_str(toml_str: &str, path: &Path) -> Result<LoadedLib> {
     let manifest: LibManifest = toml::from_str(toml_str).map_err(|e| {
-        GodotinoError::codegen(format!(
-            "malformed godotinolib.toml at {}: {}",
+        tsukiError::codegen(format!(
+            "malformed tsukilib.toml at {}: {}",
             path.display(), e
         ))
     })?;
@@ -156,22 +156,22 @@ pub fn load_from_str(toml_str: &str, path: &Path) -> Result<LoadedLib> {
 // ── Library search path ───────────────────────────────────────────────────────
 
 /// Returns the default library search root.
-///   Linux/macOS: ~/.local/share/godotino/libs
-///   Windows:     %APPDATA%\godotino\libs
+///   Linux/macOS: ~/.local/share/tsuki/libs
+///   Windows:     %APPDATA%\tsuki\libs
 pub fn default_libs_dir() -> PathBuf {
     #[cfg(target_os = "windows")]
     {
         let base = std::env::var("APPDATA").unwrap_or_else(|_| ".".into());
-        PathBuf::from(base).join("godotino").join("libs")
+        PathBuf::from(base).join("tsuki").join("libs")
     }
     #[cfg(not(target_os = "windows"))]
     {
         let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
-        PathBuf::from(home).join(".local").join("share").join("godotino").join("libs")
+        PathBuf::from(home).join(".local").join("share").join("tsuki").join("libs")
     }
 }
 
-/// Scan a libs directory and return the path to `godotinolib.toml` for each
+/// Scan a libs directory and return the path to `tsukilib.toml` for each
 /// installed library at its highest installed version.
 ///
 /// Expected structure:
@@ -179,12 +179,12 @@ pub fn default_libs_dir() -> PathBuf {
 /// libs_dir/
 ///   ws2812/
 ///     1.0.0/
-///       godotinolib.toml
+///       tsukilib.toml
 ///     1.1.0/
-///       godotinolib.toml   ← selected (highest semver)
+///       tsukilib.toml   ← selected (highest semver)
 ///   dht/
 ///     0.9.2/
-///       godotinolib.toml
+///       tsukilib.toml
 /// ```
 pub fn scan_libs_dir(libs_dir: &Path) -> Vec<PathBuf> {
     let mut found = Vec::new();
@@ -208,7 +208,7 @@ pub fn scan_libs_dir(libs_dir: &Path) -> Vec<PathBuf> {
         ver_dirs.sort();
 
         if let Some(latest) = ver_dirs.last() {
-            let manifest = latest.join("godotinolib.toml");
+            let manifest = latest.join("tsukilib.toml");
             if manifest.exists() {
                 found.push(manifest);
             }
@@ -223,7 +223,7 @@ pub fn load_all(libs_dir: &Path) -> Vec<LoadedLib> {
         .into_iter()
         .filter_map(|p| {
             load_from_file(&p)
-                .map_err(|e| eprintln!("godotino: warning: skipping {}: {}", p.display(), e))
+                .map_err(|e| eprintln!("tsuki: warning: skipping {}: {}", p.display(), e))
                 .ok()
         })
         .collect()
@@ -232,12 +232,12 @@ pub fn load_all(libs_dir: &Path) -> Vec<LoadedLib> {
 // ── Install helper (called by Go CLI via shell-out) ───────────────────────────
 
 /// Download and install a library from a URL or registry slug.
-/// The Go CLI calls `godotino-core pkg install <name> <version> <url>` which
+/// The Go CLI calls `tsuki-core pkg install <name> <version> <url>` which
 /// routes here. We just write the TOML to the right path; the CLI handles
 /// HTTP fetching so this stays sync + no async runtime needed.
 pub fn install_from_toml(libs_dir: &Path, toml_str: &str) -> Result<String> {
     let manifest: LibManifest = toml::from_str(toml_str).map_err(|e| {
-        GodotinoError::codegen(format!("invalid godotinolib.toml: {}", e))
+        tsukiError::codegen(format!("invalid tsukilib.toml: {}", e))
     })?;
 
     let pkg_name = &manifest.package.name;
@@ -245,12 +245,12 @@ pub fn install_from_toml(libs_dir: &Path, toml_str: &str) -> Result<String> {
     let dest_dir = libs_dir.join(pkg_name).join(version);
 
     fs::create_dir_all(&dest_dir).map_err(|e| {
-        GodotinoError::codegen(format!("cannot create {}: {}", dest_dir.display(), e))
+        tsukiError::codegen(format!("cannot create {}: {}", dest_dir.display(), e))
     })?;
 
-    let dest_file = dest_dir.join("godotinolib.toml");
+    let dest_file = dest_dir.join("tsukilib.toml");
     fs::write(&dest_file, toml_str).map_err(|e| {
-        GodotinoError::codegen(format!("cannot write {}: {}", dest_file.display(), e))
+        tsukiError::codegen(format!("cannot write {}: {}", dest_file.display(), e))
     })?;
 
     Ok(format!("installed {}@{} → {}", pkg_name, version, dest_dir.display()))

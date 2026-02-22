@@ -1,8 +1,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  godotino :: runtime :: pkg_manager
+//  tsuki :: runtime :: pkg_manager
 //
 //  Package manager: reads a JSON registry from a URL (your GitHub repo) and
-//  downloads / installs godotinolib packages from the URLs listed there.
+//  downloads / installs tsukilib packages from the URLs listed there.
 //
 //  Registry JSON format (hosted at REGISTRY_URL):
 //
@@ -10,11 +10,11 @@
 //    "packages": {
 //      "ws2812": {
 //        "description": "WS2812 NeoPixel driver",
-//        "author":      "godotino-team",
+//        "author":      "tsuki-team",
 //        "latest":      "1.1.0",
 //        "versions": {
-//          "1.0.0": "https://raw.githubusercontent.com/.../ws2812/1.0.0/godotinolib.toml",
-//          "1.1.0": "https://raw.githubusercontent.com/.../ws2812/1.1.0/godotinolib.toml"
+//          "1.0.0": "https://raw.githubusercontent.com/.../ws2812/1.0.0/tsukilib.toml",
+//          "1.1.0": "https://raw.githubusercontent.com/.../ws2812/1.1.0/tsukilib.toml"
 //        }
 //      },
 //      "dht": { ... }
@@ -22,13 +22,13 @@
 //  }
 //
 //  CLI commands wired here (via main.rs):
-//    godotino pkg list               — list all available packages in the registry
-//    godotino pkg search <query>     — search registry by name/description
-//    godotino pkg install <name>     — install latest version
-//    godotino pkg install <name>@<v> — install specific version
-//    godotino pkg remove  <name>     — remove installed package
-//    godotino pkg update             — update all installed packages to latest
-//    godotino pkg installed          — list locally installed packages
+//    tsuki pkg list               — list all available packages in the registry
+//    tsuki pkg search <query>     — search registry by name/description
+//    tsuki pkg install <name>     — install latest version
+//    tsuki pkg install <name>@<v> — install specific version
+//    tsuki pkg remove  <name>     — remove installed package
+//    tsuki pkg update             — update all installed packages to latest
+//    tsuki pkg installed          — list locally installed packages
 // ─────────────────────────────────────────────────────────────────────────────
 
 use std::collections::HashMap;
@@ -37,7 +37,7 @@ use std::fs;
 
 use serde::{Deserialize, Serialize};
 
-use crate::error::{GodotinoError, Result};
+use crate::error::{tsukiError, Result};
 use super::pkg_loader;
 
 // Re-export for use by the binary crate
@@ -45,10 +45,10 @@ pub use super::pkg_loader::default_libs_dir;
 
 // ── Registry URL ──────────────────────────────────────────────────────────────
 
-/// Default registry URL. Override with the GODOTINO_REGISTRY env var or
+/// Default registry URL. Override with the tsuki_REGISTRY env var or
 /// the --registry flag so users can point at their own fork / mirror.
 pub const DEFAULT_REGISTRY_URL: &str =
-    "https://raw.githubusercontent.com/s7lver/godotino-pkgs/main/registry.json";
+    "https://raw.githubusercontent.com/s7lver/tsuki-pkgs/main/registry.json";
 
 // ── Registry schema ───────────────────────────────────────────────────────────
 
@@ -73,7 +73,7 @@ pub struct RegistryEntry {
 pub fn fetch_registry(url: &str) -> Result<Registry> {
     let body = http_get(url)?;
     let reg: Registry = serde_json::from_str(&body).map_err(|e| {
-        GodotinoError::codegen(format!("failed to parse registry JSON from {}: {}", url, e))
+        tsukiError::codegen(format!("failed to parse registry JSON from {}: {}", url, e))
     })?;
     Ok(reg)
 }
@@ -82,9 +82,9 @@ pub fn fetch_registry(url: &str) -> Result<Registry> {
 fn http_get(url: &str) -> Result<String> {
     ureq::get(url)
         .call()
-        .map_err(|e| GodotinoError::codegen(format!("HTTP GET {} failed: {}", url, e)))?
+        .map_err(|e| tsukiError::codegen(format!("HTTP GET {} failed: {}", url, e)))?
         .into_string()
-        .map_err(|e| GodotinoError::codegen(format!("failed to read response body from {}: {}", url, e)))
+        .map_err(|e| tsukiError::codegen(format!("failed to read response body from {}: {}", url, e)))
 }
 
 // ── Install ───────────────────────────────────────────────────────────────────
@@ -105,8 +105,8 @@ pub fn install(
     let (name, version_hint) = parse_name_version(name_ver);
 
     let entry = registry.packages.get(name).ok_or_else(|| {
-        GodotinoError::codegen(format!(
-            "package '{}' not found in registry — run `godotino pkg list` to see available packages",
+        tsukiError::codegen(format!(
+            "package '{}' not found in registry — run `tsuki pkg list` to see available packages",
             name
         ))
     })?;
@@ -115,13 +115,13 @@ pub fn install(
 
     let toml_url = entry.versions.get(version).ok_or_else(|| {
         let available: Vec<&str> = entry.versions.keys().map(|s| s.as_str()).collect();
-        GodotinoError::codegen(format!(
+        tsukiError::codegen(format!(
             "version '{}' not found for package '{}'. Available: {}",
             version, name, available.join(", ")
         ))
     })?;
 
-    eprintln!("godotino: downloading {}@{} from {} …", name, version, toml_url);
+    eprintln!("tsuki: downloading {}@{} from {} …", name, version, toml_url);
     let toml_str = http_get(toml_url)?;
 
     let msg = pkg_loader::install_from_toml(libs_dir, &toml_str)?;
@@ -134,7 +134,7 @@ pub fn remove(name_ver: &str, libs_dir: &Path) -> Result<String> {
     let pkg_dir = libs_dir.join(name);
 
     if !pkg_dir.exists() {
-        return Err(GodotinoError::codegen(format!(
+        return Err(tsukiError::codegen(format!(
             "package '{}' is not installed (looked in {})",
             name, pkg_dir.display()
         )));
@@ -144,12 +144,12 @@ pub fn remove(name_ver: &str, libs_dir: &Path) -> Result<String> {
         Some(ver) => {
             let ver_dir = pkg_dir.join(ver);
             if !ver_dir.exists() {
-                return Err(GodotinoError::codegen(format!(
+                return Err(tsukiError::codegen(format!(
                     "{}@{} is not installed", name, ver
                 )));
             }
             fs::remove_dir_all(&ver_dir).map_err(|e| {
-                GodotinoError::codegen(format!("failed to remove {}: {}", ver_dir.display(), e))
+                tsukiError::codegen(format!("failed to remove {}: {}", ver_dir.display(), e))
             })?;
             // If no more versions, remove the package dir too
             if fs::read_dir(&pkg_dir).map(|mut d| d.next().is_none()).unwrap_or(false) {
@@ -159,7 +159,7 @@ pub fn remove(name_ver: &str, libs_dir: &Path) -> Result<String> {
         }
         None => {
             fs::remove_dir_all(&pkg_dir).map_err(|e| {
-                GodotinoError::codegen(format!("failed to remove {}: {}", pkg_dir.display(), e))
+                tsukiError::codegen(format!("failed to remove {}: {}", pkg_dir.display(), e))
             })?;
             Ok(format!("removed {} (all versions)", name))
         }

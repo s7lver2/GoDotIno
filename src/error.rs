@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  godotino :: error
+//  tsuki :: error
 //  Unified error types and source-location tracking.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -39,7 +39,7 @@ impl std::fmt::Display for Span {
 // ── Error type ────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Error)]
-pub enum GodotinoError {
+pub enum tsukiError {
     // ── pipeline errors ──────────────────────────────────────────────────────
     #[error("[lex]   {span}  {msg}")]
     Lex { msg: String, span: Span },
@@ -66,7 +66,7 @@ pub enum GodotinoError {
     Other(String),
 }
 
-impl GodotinoError {
+impl tsukiError {
     // Convenience constructors
     pub fn lex(span: Span, msg: impl Into<String>)   -> Self { Self::Lex   { msg: msg.into(), span } }
     pub fn parse(span: Span, msg: impl Into<String>) -> Self { Self::Parse { msg: msg.into(), span } }
@@ -106,4 +106,4 @@ impl GodotinoError {
     }
 }
 
-pub type Result<T> = std::result::Result<T, GodotinoError>;
+pub type Result<T> = std::result::Result<T, tsukiError>;

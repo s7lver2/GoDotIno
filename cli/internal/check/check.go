@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  godotino :: check  —  validate source files without building
+//  tsuki :: check  —  validate source files without building
 // ─────────────────────────────────────────────────────────────────────────────
 
 package check
@@ -10,9 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/godotino/cli/internal/core"
-	"github.com/godotino/cli/internal/manifest"
-	"github.com/godotino/cli/internal/ui"
+	"github.com/tsuki/cli/internal/core"
+	"github.com/tsuki/cli/internal/manifest"
+	"github.com/tsuki/cli/internal/ui"
 )
 
 // Options controls the check command.
@@ -47,7 +47,7 @@ func Run(projectDir string, m *manifest.Manifest, opts Options) (*Report, error)
 	transpiler := core.New(opts.CoreBin, opts.Verbose)
 	if !transpiler.Installed() {
 		return nil, fmt.Errorf(
-			"godotino-core not found — install it or set core_binary in your config",
+			"tsuki-core not found — install it or set core_binary in your config",
 		)
 	}
 

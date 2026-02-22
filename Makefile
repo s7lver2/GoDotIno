@@ -14,9 +14,9 @@
 #    make uninstall  — remove installed binaries
 # ─────────────────────────────────────────────────────────────────────────────
 # ── Variables ─────────────────────────────────────────────────────────────────
-BINARY      := godotino
-CORE_BINARY := godotino-core
-MODULE      := github.com/godotino/cli
+BINARY      := tsuki
+CORE_BINARY := tsuki-core
+MODULE      := github.com/tsuki/cli
 VERSION     := $(shell git describe --tags --always --dirty 2>/dev/null || echo "0.1.0")
 COMMIT      := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 DATE        := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -30,8 +30,9 @@ LDFLAGS     := -ldflags "-s -w \
 # Directories
 BUILD_DIR   := dist
 C_BUILD_DIR   := target/release
-CLI_DIR     := cli/cmd/godotino
+CLI_DIR     := cli/cmd/tsuki
 CORE_DIR    := .  # path to Cargo.toml (relative to this Makefile)
+LIBS_DIR := /usr/share
 # Install prefix
 PREFIX      := /usr/local
 BINDIR      := $(PREFIX)/bin
@@ -59,40 +60,40 @@ install-arduino: ## Install Arduino CLI locally
 	@arduino-cli version
 # ── Build ─────────────────────────────────────────────────────────────────────
 .PHONY: build
-build: $(BUILD_DIR)/$(BINARY)  ## Build the godotino CLI binary
+build: $(BUILD_DIR)/$(BINARY)  ## Build the tsuki CLI binary
 $(BUILD_DIR)/$(BINARY): cli/go.mod cli/go.sum $(shell find cli -name '*.go')
 	@mkdir -p $(BUILD_DIR)
 	@echo "  GO BUILD  $(BINARY) $(VERSION)"
-	@cd cli && $(GO) build $(GOFLAGS) $(LDFLAGS) -o ../$(BUILD_DIR)/$(BINARY) ./cmd/godotino
+	@cd cli && $(GO) build $(GOFLAGS) $(LDFLAGS) -o ../$(BUILD_DIR)/$(BINARY) ./cmd/tsuki
 	@echo "  OK        $(BUILD_DIR)/$(BINARY)"
 .PHONY: build-core
-build-core:  ## Build the godotino-core Rust binary
-	@echo "  CARGO BUILD  godotino-core"
+build-core:  ## Build the tsuki-core Rust binary
+	@echo "  CARGO BUILD  tsuki-core"
 	@cd $(CORE_DIR) && cargo build --release
 	@mkdir -p $(BUILD_DIR)
-	@cp $(CORE_DIR)/target/release/godotino $(BUILD_DIR)/$(CORE_BINARY) 2>/dev/null || \
-	   cp $(CORE_DIR)/target/release/godotino.exe $(BUILD_DIR)/$(CORE_BINARY).exe 2>/dev/null || true
+	@cp $(CORE_DIR)/target/release/tsuki $(BUILD_DIR)/$(CORE_BINARY) 2>/dev/null || \
+	   cp $(CORE_DIR)/target/release/tsuki.exe $(BUILD_DIR)/$(CORE_BINARY).exe 2>/dev/null || true
 	@echo "  OK  $(BUILD_DIR)/$(CORE_BINARY)"
 # ── Install ───────────────────────────────────────────────────────────────────
 .PHONY: install
-install: build  ## Install godotino CLI to $(BINDIR)
+install: build  ## Install tsuki CLI to $(BINDIR)
 	@echo "  INSTALL   $(BINDIR)/$(BINARY)"
 	@sudo install -d $(BINDIR)
 	@sudo install -m 0755 $(BUILD_DIR)/$(BINARY) $(BINDIR)/$(BINARY)
-	@echo "  ✓  godotino installed to $(BINDIR)/$(BINARY)"
-	@echo "     Run: godotino --help"
+	@echo "  ✓  tsuki installed to $(BINDIR)/$(BINARY)"
+	@echo "     Run: tsuki --help"
 .PHONY: install-all
 install-all: build build-core  ## Install CLI + core to $(BINDIR)
 	@$(MAKE) install
 	@echo "  INSTALL   $(BINDIR)/$(CORE_BINARY)"
 	@sudo install -m 0755 $(C_BUILD_DIR)/$(CORE_BINARY) $(BINDIR)/$(CORE_BINARY)
-	@echo "  ✓  godotino-core installed to $(BINDIR)/$(CORE_BINARY)"
-	@echo "  ✓  Rembember to run godotino config set core_binary $(BINDIR)/$(CORE_BINARY)"
+	@echo "  ✓  tsuki-core installed to $(BINDIR)/$(CORE_BINARY)"
+	@echo "  ✓  Rembember to run tsuki config set core_binary $(BINDIR)/$(CORE_BINARY)"
 .PHONY: install-user
-install-user: build  ## Install godotino CLI to ~/bin (no sudo)
+install-user: build  ## Install tsuki CLI to ~/bin (no sudo)
 	@mkdir -p $(HOME)/bin
 	@cp $(BUILD_DIR)/$(BINARY) $(HOME)/bin/$(BINARY)
-	@echo "  ✓  godotino installed to ~/bin/$(BINARY)"
+	@echo "  ✓  tsuki installed to ~/bin/$(BINARY)"
 	@echo "     Make sure ~/bin is on your PATH:"
 	@echo "       export PATH=\"\$$HOME/bin:\$$PATH\""
 .PHONY: uninstall
@@ -101,9 +102,9 @@ uninstall:  ## Remove installed binaries
 	@echo "  ✓  Uninstalled"
 .PHONY: configure
 configure:
-	@godotino config set libs_dir "~/my-godotino-libs"
-	@godotino config set core_binary $(BINDIR)/$(CORE_BINARY)
-	@godotino config set registry_url "https://raw.githubusercontent.com/s7lver2/GoDotIno/refs/heads/main/pkg/packages.json"
+	@tsuki config set libs_dir "$(LIBS_DIR)/tsuki-libs"
+	@tsuki config set core_binary $(BINDIR)/$(CORE_BINARY)
+	@tsuki config set registry_url "https://raw.githubusercontent.com/s7lver2/tsuki/refs/heads/main/pkg/packages.json"
 # ── Release (cross-compile) ───────────────────────────────────────────────────
 .PHONY: release
 release:  ## Cross-compile for all platforms into dist/
@@ -114,7 +115,7 @@ release:  ## Cross-compile for all platforms into dist/
 	  OUTPUT=$(BUILD_DIR)/$(BINARY)-$$GOOS-$$GOARCH; \
 	  if [ "$$GOOS" = "windows" ]; then OUTPUT=$$OUTPUT.exe; fi; \
 	  echo "  CROSS     $$GOOS/$$GOARCH  →  $$OUTPUT"; \
-	  cd cli && GOOS=$$GOOS GOARCH=$$GOARCH $(GO) build $(GOFLAGS) $(LDFLAGS) -o ../$$OUTPUT ./cmd/godotino || exit 1; \
+	  cd cli && GOOS=$$GOOS GOARCH=$$GOARCH $(GO) build $(GOFLAGS) $(LDFLAGS) -o ../$$OUTPUT ./cmd/tsuki || exit 1; \
 	done
 	@echo ""
 	@echo "  ✓  Release binaries in $(BUILD_DIR)/"
@@ -151,7 +152,7 @@ clean:  ## Remove build artifacts
 .PHONY: help
 help:  ## Show this help
 	@echo ""
-	@echo "  godotino Makefile — $(VERSION)"
+	@echo "  tsuki Makefile — $(VERSION)"
 	@echo ""
 	@grep -E '^[a-zA-Z_-]+:.*##' $(MAKEFILE_LIST) | \
 	  awk 'BEGIN {FS = ":.*##"}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'

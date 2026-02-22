@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/godotino/cli/internal/check"
-	"github.com/godotino/cli/internal/manifest"
+	"github.com/tsuki/cli/internal/check"
+	"github.com/tsuki/cli/internal/manifest"
 )
 
 func newCheckCmd() *cobra.Command {
@@ -14,8 +14,8 @@ func newCheckCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "check",
 		Short: "Validate source files for errors and warnings (no output produced)",
-		Example: `  godotino check
-  godotino check --board esp32`,
+		Example: `  tsuki check
+  tsuki check --board esp32`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			dir := projectDir()
 			_, m, err := manifest.Find(dir)

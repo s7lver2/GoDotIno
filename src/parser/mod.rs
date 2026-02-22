@@ -1,12 +1,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  godotino :: parser
+//  tsuki :: parser
 //  Recursive-descent parser: Vec<Token> → Program AST
 // ─────────────────────────────────────────────────────────────────────────────
 
 pub mod ast;
 pub use ast::*;
 
-use crate::error::{GodotinoError, Result, Span};
+use crate::error::{tsukiError, Result, Span};
 use crate::lexer::token::{Token, TokenKind};
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -21,7 +21,7 @@ pub struct Parser {
 impl Parser {
     pub fn new(mut tokens: Vec<Token>) -> Self {
         // Drop newlines — we don't implement full Go ASI (simplified)
-        tokens.retain(|t| !matches!(t.kind, TokenKind::Newline | TokenKind::Semicolon));
+        tokens.retain(|t| !matches!(t.kind, TokenKind::Newline));
         Self { tokens, pos: 0 }
     }
 
@@ -53,7 +53,7 @@ impl Parser {
             self.advance();
             Ok(sp)
         } else {
-            Err(GodotinoError::parse(
+            Err(tsukiError::parse(
                 self.span(),
                 format!("expected `{:?}`, found `{:?}`", kind, self.peek_kind()),
             ))
@@ -63,7 +63,7 @@ impl Parser {
     fn expect_ident(&mut self) -> Result<String> {
         match self.peek_kind().clone() {
             TokenKind::Ident(s) => { self.advance(); Ok(s) }
-            _ => Err(GodotinoError::parse(
+            _ => Err(tsukiError::parse(
                 self.span(),
                 format!("expected identifier, found `{:?}`", self.peek_kind()),
             )),
@@ -129,7 +129,7 @@ impl Parser {
         };
         let path = match self.peek_kind().clone() {
             TokenKind::LitString(s) => { self.advance(); s }
-            _ => return Err(GodotinoError::parse(self.span(), "expected import path string")),
+            _ => return Err(tsukiError::parse(self.span(), "expected import path string")),
         };
         Ok(Import { alias, path })
     }
@@ -142,7 +142,7 @@ impl Parser {
             TokenKind::KwType  => self.parse_type_decl(),
             TokenKind::KwVar   => self.parse_var_decl_top(),
             TokenKind::KwConst => self.parse_const_decl_top(),
-            _ => Err(GodotinoError::parse(
+            _ => Err(tsukiError::parse(
                 self.span(),
                 format!("unexpected top-level token `{:?}`", self.peek_kind()),
             )),
@@ -340,7 +340,7 @@ impl Parser {
                 Ok(builtin_type(&name))
             }
 
-            _ => Err(GodotinoError::parse(
+            _ => Err(tsukiError::parse(
                 self.span(),
                 format!("expected type, found `{:?}`", self.peek_kind()),
             )),
@@ -354,7 +354,12 @@ impl Parser {
         self.expect(&TokenKind::LBrace)?;
         let mut stmts = Vec::new();
         while !self.at(&TokenKind::RBrace) && !self.eof() {
+            // Eat stray semicolons between statements
+            while self.eat(&TokenKind::Semicolon) {}
+            if self.at(&TokenKind::RBrace) { break; }
             stmts.push(self.parse_stmt()?);
+            // Eat trailing semicolons after each statement
+            while self.eat(&TokenKind::Semicolon) {}
         }
         self.expect(&TokenKind::RBrace)?;
         Ok(Block { stmts, span })
@@ -428,14 +433,58 @@ impl Parser {
         let span = self.span();
         self.expect(&TokenKind::KwFor)?;
 
-        // infinite loop
+        // infinite loop: `for { }`
         if self.at(&TokenKind::LBrace) {
             return Ok(Stmt::For { init: None, cond: None, post: None, body: self.parse_block()?, span });
         }
 
-        // check for range
+        // check for range: `for k, v := range expr { }`
         if self.has_range_keyword_ahead() {
             return self.parse_range(span);
+        }
+
+        // Peek ahead to detect C-style `for init; cond; post { }`
+        // vs while-style `for cond { }`. We look for a Semicolon before LBrace.
+        let has_semicolon = {
+            let mut i = self.pos;
+            let mut found = false;
+            while i < self.tokens.len() {
+                match &self.tokens[i].kind {
+                    TokenKind::Semicolon => { found = true; break; }
+                    TokenKind::LBrace | TokenKind::EOF => break,
+                    _ => i += 1,
+                }
+            }
+            found
+        };
+
+        if has_semicolon {
+            // C-style: `for init; cond; post { }`
+            // init may be empty (e.g. `for ; cond; post`)
+            let init = if self.at(&TokenKind::Semicolon) {
+                None
+            } else {
+                Some(Box::new(self.parse_simple_stmt()?))
+            };
+            self.expect(&TokenKind::Semicolon)?;
+
+            // cond may be empty (infinite-ish loop)
+            let cond = if self.at(&TokenKind::Semicolon) {
+                None
+            } else {
+                Some(self.parse_expr(0)?)
+            };
+            self.expect(&TokenKind::Semicolon)?;
+
+            // post may be empty
+            let post = if self.at(&TokenKind::LBrace) {
+                None
+            } else {
+                Some(Box::new(self.parse_simple_stmt()?))
+            };
+
+            let body = self.parse_block()?;
+            return Ok(Stmt::For { init, cond, post, body, span });
         }
 
         // while-style: `for cond { }`
@@ -663,7 +712,7 @@ impl Parser {
                 self.parse_composite(ty, span)
             }
 
-            _ => Err(GodotinoError::parse(
+            _ => Err(tsukiError::parse(
                 span,
                 format!("unexpected token in expression: `{:?}`", self.peek_kind()),
             )),
@@ -736,6 +785,6 @@ fn parse_assign_op(op: &str) -> AssignOp {
 fn expr_list_to_names(exprs: &[Expr], span: &Span) -> Result<Vec<String>> {
     exprs.iter().map(|e| match e {
         Expr::Ident { name, .. } => Ok(name.clone()),
-        _ => Err(GodotinoError::parse(span.clone(), "left side of `:=` must be identifiers")),
+        _ => Err(tsukiError::parse(span.clone(), "left side of `:=` must be identifiers")),
     }).collect()
 }

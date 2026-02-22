@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  godotino_core  —  public library API  (updated for external libs)
+//  tsuki_core  —  public library API  (updated for external libs)
 // ─────────────────────────────────────────────────────────────────────────────
 
 pub mod error;
@@ -8,7 +8,7 @@ pub mod parser;
 pub mod runtime;
 pub mod transpiler;
 
-pub use error::{GodotinoError, Result, Span};
+pub use error::{tsukiError, Result, Span};
 pub use transpiler::TranspileConfig;
 pub use runtime::{Board, Runtime};
 pub use runtime::pkg_loader::{LibManifest, load_from_str as load_lib_from_str};
@@ -20,7 +20,7 @@ pub use runtime::pkg_manager;
 ///
 /// # Minimal usage (built-in packages only)
 /// ```no_run
-/// use godotino_core::{Pipeline, TranspileConfig};
+/// use tsuki_core::{Pipeline, TranspileConfig};
 ///
 /// let source = "package main\nfunc main() {}";
 ///
@@ -31,14 +31,14 @@ pub use runtime::pkg_manager;
 ///
 /// # With external libraries
 /// ```no_run
-/// use godotino_core::{Pipeline, TranspileConfig, PipelineOptions};
+/// use tsuki_core::{Pipeline, TranspileConfig, PipelineOptions};
 /// use std::path::PathBuf;
 ///
 /// let source = "package main\nfunc main() {}";
 ///
 /// let cpp = Pipeline::new(TranspileConfig::default())
 ///     .with_options(PipelineOptions {
-///         libs_dir:  Some(PathBuf::from("/home/user/.local/share/godotino/libs")),
+///         libs_dir:  Some(PathBuf::from("/home/user/.local/share/tsuki/libs")),
 ///         pkg_names: vec!["ws2812".into(), "dht".into()],
 ///         ..Default::default()
 ///     })
@@ -97,6 +97,6 @@ impl Pipeline {
 
 // ── Diagnostics helper ────────────────────────────────────────────────────────
 
-pub fn pretty_error(err: &GodotinoError, source: &str) -> String {
+pub fn pretty_error(err: &tsukiError, source: &str) -> String {
     err.pretty(source)
 }

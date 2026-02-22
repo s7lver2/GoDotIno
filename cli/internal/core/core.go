@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  godotino :: core  (updated)
-//  Shell-out to godotino-core with --libs-dir and --packages support.
+//  tsuki :: core  (updated)
+//  Shell-out to tsuki-core with --libs-dir and --packages support.
 // ─────────────────────────────────────────────────────────────────────────────
 
 package core
@@ -12,12 +12,12 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/godotino/cli/internal/ui"
+	"github.com/tsuki/cli/internal/ui"
 )
 
-const defaultBinary = "godotino-core"
+const defaultBinary = "tsuki-core"
 
-// Transpiler wraps the godotino-core binary.
+// Transpiler wraps the tsuki-core binary.
 type Transpiler struct {
 	binary  string
 	verbose bool
@@ -37,10 +37,10 @@ type TranspileRequest struct {
 	Board      string
 	SourceMap  bool
 	// Optional: root directory where external libs are installed.
-	// Passed as --libs-dir to godotino-core.
+	// Passed as --libs-dir to tsuki-core.
 	LibsDir  string
-	// Optional: names of packages declared in goduino.json.
-	// Passed as --packages ws2812,dht to godotino-core.
+	// Optional: names of packages declared in tsuki.json.
+	// Passed as --packages ws2812,dht to tsuki-core.
 	PkgNames []string
 }
 

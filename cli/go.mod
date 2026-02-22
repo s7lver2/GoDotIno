@@ -1,4 +1,4 @@
-module github.com/godotino/cli
+module github.com/tsuki/cli
 
 go 1.21
 

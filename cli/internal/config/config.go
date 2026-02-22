@@ -1,9 +1,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  godotino :: config  —  persistent CLI configuration
+//  tsuki :: config  —  persistent CLI configuration
 //
 //  Stored at:
-//    Linux/macOS: ~/.config/godotino/config.json
-//    Windows:     %APPDATA%\godotino\config.json
+//    Linux/macOS: ~/.config/tsuki/config.json
+//    Windows:     %APPDATA%\tsuki\config.json
 // ─────────────────────────────────────────────────────────────────────────────
 
 package config
@@ -19,13 +19,13 @@ import (
 	"strings"
 )
 
-const defaultRegistryURL = "https://raw.githubusercontent.com/s7lver2/GoDotIno/refs/heads/main/pkg/packages.json"
-const defaultKeysIndexURL = "https://raw.githubusercontent.com/s7lver2/GoDotIno/refs/heads/main/pkg/keys/index.json"
+const defaultRegistryURL = "https://raw.githubusercontent.com/s7lver2/tsuki/refs/heads/main/pkg/packages.json"
+const defaultKeysIndexURL = "https://raw.githubusercontent.com/s7lver2/tsuki/refs/heads/main/pkg/keys/index.json"
 
 // Config holds all persistent user-level settings.
 type Config struct {
 	// ── Core tools ──────────────────────────────────────────────────────────
-	CoreBinary   string `json:"core_binary"   comment:"path to godotino-core binary"`
+	CoreBinary   string `json:"core_binary"   comment:"path to tsuki-core binary"`
 	ArduinoCLI   string `json:"arduino_cli"   comment:"path to arduino-cli binary"`
 	DefaultBoard string `json:"default_board" comment:"default target board"`
 	DefaultBaud  int    `json:"default_baud"  comment:"default serial baud rate"`
@@ -37,7 +37,7 @@ type Config struct {
 
 	// ── Package management ──────────────────────────────────────────────────
 
-	// LibsDir is where godotinolib packages are installed.
+	// LibsDir is where tsukilib packages are installed.
 	LibsDir string `json:"libs_dir" comment:"directory where packages are installed (leave empty for default)"`
 
 	// RegistryURL is kept for backward compatibility with existing config files.
@@ -86,7 +86,7 @@ func (c *Config) ResolvedLibsDir() string {
 	if c.LibsDir != "" {
 		return c.LibsDir
 	}
-	if env := os.Getenv("GODOTINO_LIBS"); env != "" {
+	if env := os.Getenv("tsuki_LIBS"); env != "" {
 		return env
 	}
 	return defaultLibsDir()
@@ -97,7 +97,7 @@ func (c *Config) ResolvedLibsDir() string {
 // environment variable overrides.
 //
 // Priority (highest first):
-//  1. GODOTINO_REGISTRY env var  (single URL, prepended)
+//  1. tsuki_REGISTRY env var  (single URL, prepended)
 //  2. Config RegistryURLs list
 //  3. Config RegistryURL (legacy, appended if not already present)
 //  4. Built-in default
@@ -114,7 +114,7 @@ func (c *Config) ResolvedRegistryURLs() []string {
 	}
 
 	// Env var override (prepend)
-	if env := os.Getenv("GODOTINO_REGISTRY"); env != "" {
+	if env := os.Getenv("tsuki_REGISTRY"); env != "" {
 		add(env)
 	}
 
@@ -138,7 +138,7 @@ func (c *Config) ResolvedKeysDir() string {
 	if c.KeysDir != "" {
 		return c.KeysDir
 	}
-	if env := os.Getenv("GODOTINO_KEYS"); env != "" {
+	if env := os.Getenv("tsuki_KEYS"); env != "" {
 		return env
 	}
 	return defaultKeysDir()
@@ -149,7 +149,7 @@ func (c *Config) ResolvedKeysIndexURL() string {
 	if c.KeysIndexURL != "" {
 		return c.KeysIndexURL
 	}
-	if env := os.Getenv("GODOTINO_KEYS_INDEX"); env != "" {
+	if env := os.Getenv("tsuki_KEYS_INDEX"); env != "" {
 		return env
 	}
 	return defaultKeysIndexURL
@@ -163,10 +163,10 @@ func defaultLibsDir() string {
 		if base == "" {
 			base = filepath.Join(os.Getenv("USERPROFILE"), "AppData", "Roaming")
 		}
-		return filepath.Join(base, "godotino", "libs")
+		return filepath.Join(base, "tsuki", "libs")
 	}
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".local", "share", "godotino", "libs")
+	return filepath.Join(home, ".local", "share", "tsuki", "libs")
 }
 
 func defaultKeysDir() string {
@@ -175,10 +175,10 @@ func defaultKeysDir() string {
 		if base == "" {
 			base = filepath.Join(os.Getenv("USERPROFILE"), "AppData", "Roaming")
 		}
-		return filepath.Join(base, "godotino", "keys")
+		return filepath.Join(base, "tsuki", "keys")
 	}
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".local", "share", "godotino", "keys")
+	return filepath.Join(home, ".local", "share", "tsuki", "keys")
 }
 
 // ── Config file I/O ───────────────────────────────────────────────────────────
@@ -194,7 +194,7 @@ func configPath() (string, error) {
 		}
 		base = filepath.Join(home, ".config")
 	}
-	return filepath.Join(base, "godotino", "config.json"), nil
+	return filepath.Join(base, "tsuki", "config.json"), nil
 }
 
 // Load reads the config from disk. Returns defaults if the file doesn't exist.

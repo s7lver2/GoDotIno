@@ -2,8 +2,8 @@ package cli
 
 import (
 	"github.com/spf13/cobra"
-	"github.com/godotino/cli/internal/flash"
-	"github.com/godotino/cli/internal/manifest"
+	"github.com/tsuki/cli/internal/flash"
+	"github.com/tsuki/cli/internal/manifest"
 )
 
 func newUploadCmd() *cobra.Command {
@@ -16,9 +16,9 @@ func newUploadCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "upload",
 		Short: "Upload compiled firmware to a connected board",
-		Example: `  godotino upload
-  godotino upload --port /dev/ttyUSB0
-  godotino upload --port COM3 --board uno`,
+		Example: `  tsuki upload
+  tsuki upload --port /dev/ttyUSB0
+  tsuki upload --port COM3 --board uno`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			dir := projectDir()
 			_, m, err := manifest.Find(dir)

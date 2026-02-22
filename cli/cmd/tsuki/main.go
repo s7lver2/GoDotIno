@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/godotino/cli/internal/cli"
+	"github.com/tsuki/cli/internal/cli"
 )
 
 func main() {

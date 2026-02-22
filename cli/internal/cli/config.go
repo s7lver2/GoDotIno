@@ -5,21 +5,21 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/godotino/cli/internal/config"
-	"github.com/godotino/cli/internal/ui"
+	"github.com/tsuki/cli/internal/config"
+	"github.com/tsuki/cli/internal/ui"
 )
 
 func newConfigCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
 		Short: "Get or set CLI configuration",
-		Long: `Manage godotino CLI configuration.
+		Long: `Manage tsuki CLI configuration.
 
-The config file is stored at ~/.config/godotino/config.json.
+The config file is stored at ~/.config/tsuki/config.json.
 
-Use 'godotino config set <key> <value>' to set a value.
-Use 'godotino config get <key>' to read a specific key.
-Use 'godotino config show' to display all settings.`,
+Use 'tsuki config set <key> <value>' to set a value.
+Use 'tsuki config get <key>' to read a specific key.
+Use 'tsuki config show' to display all settings.`,
 	}
 
 	cmd.AddCommand(
@@ -37,10 +37,10 @@ func newConfigSetCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "set <key> <value>",
 		Short: "Set a configuration key",
-		Example: `  godotino config set default_board esp32
-  godotino config set arduino_cli /usr/local/bin/arduino-cli
-  godotino config set verbose true
-  godotino config set default_baud 115200`,
+		Example: `  tsuki config set default_board esp32
+  tsuki config set arduino_cli /usr/local/bin/arduino-cli
+  tsuki config set verbose true
+  tsuki config set default_baud 115200`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			key, value := args[0], args[1]
@@ -67,7 +67,7 @@ func newConfigSetCmd() *cobra.Command {
 			ui.Success(fmt.Sprintf("Set %s = %s", key, value))
 
 			// Show updated entry in styled box
-			ui.PrintConfig("godotino config", []ui.ConfigEntry{
+			ui.PrintConfig("tsuki config", []ui.ConfigEntry{
 				{Key: key, Value: value},
 			}, false)
 
@@ -88,9 +88,9 @@ func newConfigGetCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "get <key>",
 		Short: "Get a configuration key",
-		Example: `  godotino config get default_board
-  godotino config get default_board --raw
-  godotino config get default_board --param`,
+		Example: `  tsuki config get default_board
+  tsuki config get default_board --raw
+  tsuki config get default_board --param`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			key := args[0]
@@ -120,7 +120,7 @@ func newConfigGetCmd() *cobra.Command {
 				}
 			}
 
-			ui.PrintConfig("godotino config", []ui.ConfigEntry{
+			ui.PrintConfig("tsuki config", []ui.ConfigEntry{
 				{Key: key, Value: val, Comment: comment},
 			}, false)
 
@@ -142,8 +142,8 @@ func newConfigShowCmd() *cobra.Command {
 		Use:     "show",
 		Short:   "Show all configuration values",
 		Aliases: []string{"list", "ls"},
-		Example: `  godotino config show
-  godotino config show --raw`,
+		Example: `  tsuki config show
+  tsuki config show --raw`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := config.Load()
 			if err != nil {
@@ -160,7 +160,7 @@ func newConfigShowCmd() *cobra.Command {
 				}
 			}
 
-			ui.PrintConfig("godotino config", uiEntries, rawFlag)
+			ui.PrintConfig("tsuki config", uiEntries, rawFlag)
 			return nil
 		},
 	}
@@ -182,7 +182,7 @@ func newConfigPathCmd() *cobra.Command {
 			}
 			ui.Info(fmt.Sprintf("Config file: %s", p))
 			if _, err := os.Stat(p); os.IsNotExist(err) {
-				ui.Warn("File does not exist yet — it will be created on first `godotino config set`")
+				ui.Warn("File does not exist yet — it will be created on first `tsuki config set`")
 			}
 			return nil
 		},

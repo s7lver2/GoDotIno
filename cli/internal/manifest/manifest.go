@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  godotino :: manifest  —  load / save goduino.json  (updated)
+//  tsuki :: manifest  —  load / save goduino.json  (updated)
 //
-//  New field: "packages" — lists external godotinolib packages required
+//  New field: "packages" — lists external tsukilib packages required
 //  by this project. These are loaded by the core during build.
 //
 //  Example goduino.json:
@@ -27,7 +27,7 @@ import (
 	"path/filepath"
 )
 
-const FileName = "goduino.json"
+const FileName = "tsuki_package.json"
 
 type Manifest struct {
 	Name        string       `json:"name"`
@@ -35,14 +35,14 @@ type Manifest struct {
 	Board       string       `json:"board"`
 	GoVersion   string       `json:"go_version"`
 	Description string       `json:"description,omitempty"`
-	// External godotinolib packages used by this project.
+	// External tsukilib packages used by this project.
 	Packages    []Package    `json:"packages"`
 	Build       BuildConfig  `json:"build"`
 }
 
-// Package is a single godotinolib dependency declared in the manifest.
+// Package is a single tsukilib dependency declared in the manifest.
 type Package struct {
-	// Canonical package name (must match godotinolib.toml [package].name).
+	// Canonical package name (must match tsukilib.toml [package].name).
 	Name    string `json:"name"`
 	// Semver range (e.g. "^1.0.0", "1.2.3", ">=1.0.0 <2.0.0").
 	Version string `json:"version"`
@@ -74,13 +74,13 @@ func Default(name, board string) *Manifest {
 	}
 }
 
-// Load reads goduino.json from the given directory.
+// Load reads tsuki.json from the given directory.
 func Load(dir string) (*Manifest, error) {
 	path := filepath.Join(dir, FileName)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("no %s found in %s — run `godotino init` first", FileName, dir)
+			return nil, fmt.Errorf("no %s found in %s — run `tsuki init` first", FileName, dir)
 		}
 		return nil, fmt.Errorf("reading %s: %w", FileName, err)
 	}
@@ -91,7 +91,7 @@ func Load(dir string) (*Manifest, error) {
 	return &m, nil
 }
 
-// Save writes the manifest to goduino.json in the given directory.
+// Save writes the manifest to tsuki.json in the given directory.
 func (m *Manifest) Save(dir string) error {
 	data, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
@@ -100,7 +100,7 @@ func (m *Manifest) Save(dir string) error {
 	return os.WriteFile(filepath.Join(dir, FileName), append(data, '\n'), 0644)
 }
 
-// Find searches upward from dir for a goduino.json file.
+// Find searches upward from dir for a tsuki.json file.
 func Find(startDir string) (string, *Manifest, error) {
 	dir := startDir
 	for {

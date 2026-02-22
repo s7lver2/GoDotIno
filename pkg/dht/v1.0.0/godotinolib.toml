@@ -2,7 +2,7 @@
 name        = "dht"
 version     = "1.0.0"
 description = "DHT11/DHT22 temperature and humidity sensor"
-author      = "godotino-team"
+author      = "tsuki-team"
 cpp_header  = "DHT.h"
 arduino_lib = "DHT sensor library"
 cpp_class   = "DHT"

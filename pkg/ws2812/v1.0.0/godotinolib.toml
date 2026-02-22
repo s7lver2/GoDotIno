@@ -2,7 +2,7 @@
 name        = "ws2812"
 version     = "1.0.0"
 description = "WS2812 / NeoPixel RGB LED driver (Adafruit NeoPixel)"
-author      = "godotino-team"
+author      = "tsuki-team"
 cpp_header  = "Adafruit_NeoPixel.h"
 arduino_lib = "Adafruit NeoPixel"
 

@@ -1,23 +1,23 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  godotino  —  standalone binary  (updated for external libs)
+//  tsuki  —  standalone binary  (updated for external libs)
 //
-//  Usage: godotino <input.go> [output.cpp] [FLAGS]
+//  Usage: tsuki <input.go> [output.cpp] [FLAGS]
 //
 //  New flags:
-//    --libs-dir <path>        root directory of installed godotinolib packages
+//    --libs-dir <path>        root directory of installed tsukilib packages
 //    --packages ws2812,dht    comma-separated package names to load
 // ─────────────────────────────────────────────────────────────────────────────
 
 use std::path::PathBuf;
-use godotino_core::{Pipeline, PipelineOptions, TranspileConfig, Board};
-use godotino_core::pkg_manager;
-use godotino_core::pkg_manager::default_libs_dir;
+use tsuki_core::{Pipeline, PipelineOptions, TranspileConfig, Board};
+use tsuki_core::pkg_manager;
+use tsuki_core::pkg_manager::default_libs_dir;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
 
     if args.iter().any(|a| a == "--version" || a == "-V") {
-        println!("godotino {}", env!("CARGO_PKG_VERSION"));
+        println!("tsuki {}", env!("CARGO_PKG_VERSION"));
         return;
     }
     if args.iter().any(|a| a == "--help" || a == "-h") || args.len() < 2 {
@@ -84,7 +84,7 @@ fn main() {
                 std::process::exit(0);
             }
             Err(e) => {
-                eprintln!("{}", godotino_core::pretty_error(&e, &source));
+                eprintln!("{}", tsuki_core::pretty_error(&e, &source));
                 std::process::exit(1);
             }
         }
@@ -105,7 +105,7 @@ fn main() {
             }
         }
         Err(e) => {
-            eprintln!("{}", godotino_core::pretty_error(&e, &source));
+            eprintln!("{}", tsuki_core::pretty_error(&e, &source));
             std::process::exit(1);
         }
     }
@@ -114,7 +114,7 @@ fn main() {
 // ── pkg subcommand handler ────────────────────────────────────────────────────
 
 fn handle_pkg(args: &[String]) {
-    // godotino pkg <cmd> [args] [--libs-dir <path>] [--registry <url>]
+    // tsuki pkg <cmd> [args] [--libs-dir <path>] [--registry <url>]
     let subcmd = args.get(2).map(|s| s.as_str()).unwrap_or("");
 
     let libs_dir = flag_value(args, "--libs-dir")
@@ -135,7 +135,7 @@ fn handle_pkg(args: &[String]) {
             entries.sort_by_key(|(n, _)| n.as_str());
 
             if entries.is_empty() {
-                eprintln!("godotino: registry is empty");
+                eprintln!("tsuki: registry is empty");
                 return;
             }
 
@@ -159,8 +159,8 @@ fn handle_pkg(args: &[String]) {
         // ── install ───────────────────────────────────────────────────────────
         "install" | "add" => {
             let pkg_arg = args.get(3).unwrap_or_else(|| {
-                eprintln!("godotino pkg install: missing package name");
-                eprintln!("usage: godotino pkg install <name>[@<version>]");
+                eprintln!("tsuki pkg install: missing package name");
+                eprintln!("usage: tsuki pkg install <name>[@<version>]");
                 std::process::exit(1);
             });
             let registry = fetch_registry_or_exit(&registry_url);
@@ -173,8 +173,8 @@ fn handle_pkg(args: &[String]) {
         // ── remove ────────────────────────────────────────────────────────────
         "remove" | "rm" | "uninstall" => {
             let pkg_arg = args.get(3).unwrap_or_else(|| {
-                eprintln!("godotino pkg remove: missing package name");
-                eprintln!("usage: godotino pkg remove <name>[@<version>]");
+                eprintln!("tsuki pkg remove: missing package name");
+                eprintln!("usage: tsuki pkg remove <name>[@<version>]");
                 std::process::exit(1);
             });
             match pkg_manager::remove(pkg_arg, &libs_dir) {
@@ -189,7 +189,7 @@ fn handle_pkg(args: &[String]) {
             match pkg_manager::update_all(&libs_dir, &registry) {
                 Ok(msgs) => {
                     if msgs.is_empty() {
-                        println!("godotino: no packages installed");
+                        println!("tsuki: no packages installed");
                     } else {
                         for m in msgs { println!("{}", m); }
                     }
@@ -202,7 +202,7 @@ fn handle_pkg(args: &[String]) {
         "installed" | "ls" => {
             let pkgs = pkg_manager::list_installed(&libs_dir);
             if pkgs.is_empty() {
-                println!("godotino: no packages installed (libs-dir: {})", libs_dir.display());
+                println!("tsuki: no packages installed (libs-dir: {})", libs_dir.display());
             } else {
                 println!("{:<20} {}", "NAME", "VERSION");
                 println!("{}", "-".repeat(32));
@@ -215,13 +215,13 @@ fn handle_pkg(args: &[String]) {
         // ── info ──────────────────────────────────────────────────────────────
         "info" => {
             let pkg_arg = args.get(3).unwrap_or_else(|| {
-                eprintln!("godotino pkg info: missing package name");
+                eprintln!("tsuki pkg info: missing package name");
                 std::process::exit(1);
             });
             let registry = fetch_registry_or_exit(&registry_url);
             match registry.packages.get(pkg_arg.as_str()) {
                 None => {
-                    eprintln!("godotino pkg info: '{}' not found in registry", pkg_arg);
+                    eprintln!("tsuki pkg info: '{}' not found in registry", pkg_arg);
                     std::process::exit(1);
                 }
                 Some(entry) => {
@@ -237,7 +237,7 @@ fn handle_pkg(args: &[String]) {
         }
 
         _ => {
-            eprintln!("godotino pkg: unknown command '{}'\n", subcmd);
+            eprintln!("tsuki pkg: unknown command '{}'\n", subcmd);
             print_pkg_help();
             std::process::exit(1);
         }
@@ -245,7 +245,7 @@ fn handle_pkg(args: &[String]) {
 }
 
 fn fetch_registry_or_exit(url: &str) -> pkg_manager::Registry {
-    eprintln!("godotino: fetching registry from {} …", url);
+    eprintln!("tsuki: fetching registry from {} …", url);
     match pkg_manager::fetch_registry(url) {
         Ok(r)  => r,
         Err(e) => {
@@ -261,32 +261,32 @@ fn flag_value(args: &[String], flag: &str) -> Option<String> {
 
 fn print_help() {
     println!(
-r#"godotino {} — Go-to-Arduino C++ transpiler
+r#"tsuki {} — Go-to-Arduino C++ transpiler
 
 USAGE:
-    godotino <input.go> [output.cpp] [FLAGS]
-    godotino pkg <command> [args]
+    tsuki <input.go> [output.cpp] [FLAGS]
+    tsuki pkg <command> [args]
 
 FLAGS:
     --board <id>           Target board (default: uno)
     --source-map           Emit #line pragmas for IDE source mapping
     --check                Validate source only (no output produced)
-    --libs-dir <path>      Root directory of installed godotinolib packages
+    --libs-dir <path>      Root directory of installed tsukilib packages
     --packages <n,...>     Comma-separated package names to load from libs-dir
     --version              Print version
     --help                 Print this help
 
 COMMANDS:
-    godotino boards        List supported boards
-    godotino pkg ...       Package manager (see `godotino pkg --help`)
+    tsuki boards        List supported boards
+    tsuki pkg ...       Package manager (see `tsuki pkg --help`)
 
 EXAMPLES:
-    godotino src/main.go build/main.cpp --board esp32
-    godotino src/main.go                               # print C++ to stdout
-    godotino src/main.go --check                       # validate only
-    godotino src/main.go build/main.cpp \
+    tsuki src/main.go build/main.cpp --board esp32
+    tsuki src/main.go                               # print C++ to stdout
+    tsuki src/main.go --check                       # validate only
+    tsuki src/main.go build/main.cpp \
         --board uno \
-        --libs-dir ~/.local/share/godotino/libs \
+        --libs-dir ~/.local/share/tsuki/libs \
         --packages ws2812,dht
 "#,
     env!("CARGO_PKG_VERSION"));
@@ -294,10 +294,10 @@ EXAMPLES:
 
 fn print_pkg_help() {
     println!(
-r#"godotino pkg — package manager
+r#"tsuki pkg — package manager
 
 USAGE:
-    godotino pkg <command> [args] [--libs-dir <path>] [--registry <url>]
+    tsuki pkg <command> [args] [--libs-dir <path>] [--registry <url>]
 
 COMMANDS:
     list                   List all packages in the registry
@@ -310,10 +310,10 @@ COMMANDS:
 
 FLAGS:
     --libs-dir <path>      Override install directory
-                           (default: ~/.local/share/godotino/libs)
+                           (default: ~/.local/share/tsuki/libs)
     --registry <url>       Override registry URL
                            (default: https://raw.githubusercontent.com/
-                            s7lver/godotino-pkgs/main/registry.json)
+                            s7lver/tsuki-pkgs/main/registry.json)
 "#);
 }
 

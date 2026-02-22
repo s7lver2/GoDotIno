@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  godotino :: cli  —  root cobra command + subcommand registration
+//  tsuki :: cli  —  root cobra command + subcommand registration
 // ─────────────────────────────────────────────────────────────────────────────
 
 package cli
@@ -11,8 +11,8 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
-	"github.com/godotino/cli/internal/config"
-	"github.com/godotino/cli/internal/ui"
+	"github.com/tsuki/cli/internal/config"
+	"github.com/tsuki/cli/internal/ui"
 )
 
 var (
@@ -25,12 +25,12 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "godotino",
+	Use:   "tsuki",
 	Short: "Go-to-Arduino transpiler & project manager",
 	Long: banner() + `
-godotino lets you write Arduino firmware in Go and transpiles it to C++.
+tsuki lets you write Arduino firmware in Go and transpiles it to C++.
 
-Run 'godotino <command> --help' for details on each command.
+Run 'tsuki <command> --help' for details on each command.
 `,
 	SilenceErrors: true,
 	SilenceUsage:  true,
@@ -77,15 +77,16 @@ func init() {
 	)
 }
 
+
 // banner returns the styled ASCII banner.
 func banner() string {
 	b := `
-   ██████╗  ██████╗ ██████╗  ██████╗ ████████╗██╗███╗   ██╗ ██████╗
-  ██╔════╝ ██╔═══██╗██╔══██╗██╔═══██╗╚══██╔══╝██║████╗  ██║██╔═══██╗
-  ██║  ███╗██║   ██║██║  ██║██║   ██║   ██║   ██║██╔██╗ ██║██║   ██║
-  ██║   ██║██║   ██║██║  ██║██║   ██║   ██║   ██║██║╚██╗██║██║   ██║
-  ╚██████╔╝╚██████╔╝██████╔╝╚██████╔╝   ██║   ██║██║ ╚████║╚██████╔╝
-   ╚═════╝  ╚═════╝ ╚═════╝  ╚═════╝    ╚═╝   ╚═╝╚═╝  ╚═══╝ ╚═════╝
+  ████████╗███████╗██╗   ██╗██╗  ██╗██╗    
+  ╚══██╔══╝██╔════╝██║   ██║██║ ██╔╝██║    
+     ██║   ███████╗██║   ██║█████╔╝ ██║    
+     ██║   ╚════██║██║   ██║██╔═██╗ ██║    
+     ██║   ███████║╚██████╔╝██║  ██╗██║    
+     ╚═╝   ╚══════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝
 `
 	if color.NoColor {
 		return b

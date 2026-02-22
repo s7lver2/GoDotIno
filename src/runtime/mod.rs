@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  godotino :: runtime  (updated)
+//  tsuki :: runtime  (updated)
 //  Maps Go packages / builtins → Arduino C++ APIs.
-//  Now also loads external libraries from godotinolib.toml packages.
+//  Now also loads external libraries from tsukilib.toml packages.
 // ─────────────────────────────────────────────────────────────────────────────
 
 pub mod pkg_loader;
@@ -96,7 +96,7 @@ impl Runtime {
     }
 
     /// Create a runtime and additionally load all external libraries found
-    /// under the given directory (scans recursively for godotinolib.toml files).
+    /// under the given directory (scans recursively for tsukilib.toml files).
     pub fn with_libs(libs_dir: &Path) -> Self {
         let mut r = Self::new();
         r.load_external_libs(libs_dir);
@@ -134,7 +134,7 @@ impl Runtime {
     }
 
     /// Load a single library from a TOML string (used in tests and by the CLI
-    /// `godotino pkg install` flow before the file is written to disk).
+    /// `tsuki pkg install` flow before the file is written to disk).
     pub fn load_lib_from_str(&mut self, toml_str: &str) -> crate::error::Result<()> {
         let lib = pkg_loader::load_from_str(toml_str, Path::new("<inline>"))?;
         self.register_lib(lib);

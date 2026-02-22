@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
-	"github.com/godotino/cli/internal/manifest"
-	"github.com/godotino/cli/internal/ui"
+	"github.com/tsuki/cli/internal/manifest"
+	"github.com/tsuki/cli/internal/ui"
 )
 
 // ── boards ────────────────────────────────────────────────────────────────────
@@ -134,9 +134,9 @@ func newVersionCmd() *cobra.Command {
 		Use:   "version",
 		Short: "Print version information",
 		Run: func(cmd *cobra.Command, args []string) {
-			ui.PrintConfig("godotino version", []ui.ConfigEntry{
-				{Key: "cli",  Value: Version,         Comment: "godotino CLI"},
-				{Key: "core", Value: "(not detected)", Comment: "godotino-core (Rust transpiler)"},
+			ui.PrintConfig("tsuki version", []ui.ConfigEntry{
+				{Key: "cli",  Value: Version,         Comment: "tsuki CLI"},
+				{Key: "core", Value: "(not detected)", Comment: "tsuki-core (Rust transpiler)"},
 			}, false)
 		},
 	}

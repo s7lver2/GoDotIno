@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  godotino :: ui  —  rich terminal output
+//  tsuki :: ui  —  rich terminal output
 //  Inspired by Python's `rich` library: boxed panels, syntax-highlighted
 //  tracebacks, colored key/value tables, spinners, and more.
 // ─────────────────────────────────────────────────────────────────────────────

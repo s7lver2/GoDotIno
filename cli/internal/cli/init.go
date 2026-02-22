@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
-	"github.com/godotino/cli/internal/manifest"
-	"github.com/godotino/cli/internal/ui"
+	"github.com/tsuki/cli/internal/manifest"
+	"github.com/tsuki/cli/internal/ui"
 )
 
 var initTemplate = `package main
@@ -31,11 +31,11 @@ func newInitCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "init [project-name]",
-		Short: "Initialize a new godotino project",
+		Short: "Initialize a new tsuki project",
 		Args:  cobra.MaximumNArgs(1),
-		Example: `  godotino init
-  godotino init my-robot
-  godotino init my-robot --board esp32`,
+		Example: `  tsuki init
+  tsuki init my-robot
+  tsuki init my-robot --board esp32`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			dir := projectDir()
 			name := filepath.Base(dir)
@@ -67,7 +67,7 @@ func newInitCmd() *cobra.Command {
 			if err := m.Save(dir); err != nil {
 				return fmt.Errorf("writing manifest: %w", err)
 			}
-			ui.Success("Created goduino.json")
+			ui.Success("Created tsuki.json")
 
 			// Write main.go skeleton
 			mainGo := filepath.Join(srcDir, "main.go")
@@ -94,8 +94,8 @@ func newInitCmd() *cobra.Command {
 			ui.Info("Next steps:")
 			ui.Step("  1", fmt.Sprintf("cd %s", name))
 			ui.Step("  2", "edit src/main.go")
-			ui.Step("  3", "godotino build")
-			ui.Step("  4", "godotino upload")
+			ui.Step("  3", "tsuki build")
+			ui.Step("  4", "tsuki upload")
 			return nil
 		},
 	}

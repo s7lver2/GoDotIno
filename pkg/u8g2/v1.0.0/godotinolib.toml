@@ -2,7 +2,7 @@
 name        = "u8g2"
 version     = "1.0.0"
 description = "U8g2 monochrome display library (OLED, LCD)"
-author      = "godotino-team"
+author      = "tsuki-team"
 cpp_header  = "U8g2lib.h"
 arduino_lib = "U8g2"
 

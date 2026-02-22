@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  godotino :: flash  —  upload firmware to the connected board
+//  tsuki :: flash  —  upload firmware to the connected board
 // ─────────────────────────────────────────────────────────────────────────────
 
 package flash
@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/godotino/cli/internal/manifest"
-	"github.com/godotino/cli/internal/ui"
+	"github.com/tsuki/cli/internal/manifest"
+	"github.com/tsuki/cli/internal/ui"
 )
 
 // Options controls the flash operation.
@@ -52,7 +52,7 @@ func Run(projectDir string, m *manifest.Manifest, opts Options) error {
 
 	fqbn, ok := boardFQBN[strings.ToLower(board)]
 	if !ok {
-		return fmt.Errorf("unknown board %q — run `godotino boards list` for the full list", board)
+		return fmt.Errorf("unknown board %q — run `tsuki boards list` for the full list", board)
 	}
 
 	port := opts.Port

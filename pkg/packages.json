@@ -1,12 +1,12 @@
 {
-  "_comment": "godotino package registry — host this at the root of your GitHub repo as registry.json",
+  "_comment": "tsuki package registry — host this at the root of your GitHub repo as registry.json",
   "packages": {
     "ws2812": {
       "description": "WS2812 / NeoPixel LED driver (Adafruit NeoPixel)",
       "author": "godotino-team",
       "latest": "1.0.0",
       "versions": {
-        "1.0.0": "https://raw.githubusercontent.com/s7lver2/GoDotIno/refs/heads/main/pkg/ws2812/v1.0.0/godotinolib.toml"
+        "1.0.0": "https://raw.githubusercontent.com/s7lver2/tsuki/refs/heads/main/pkg/ws2812/v1.0.0/godotinolib.toml"
       }
     },
     "dht": {
@@ -14,7 +14,7 @@
       "author": "godotino-team",
       "latest": "1.0.0",
       "versions": {
-        "1.0.0": "https://raw.githubusercontent.com/s7lver2/GoDotIno/refs/heads/main/pkg/dht/v1.0.0/godotinolib.toml"
+        "1.0.0": "https://raw.githubusercontent.com/s7lver2/tsuki/refs/heads/main/pkg/dht/v1.0.0/godotinolib.toml"
       }
     },
     "hcsr04": {
@@ -22,7 +22,7 @@
       "author": "godotino-team",
       "latest": "1.0.0",
       "versions": {
-        "1.0.0": "https://raw.githubusercontent.com/s7lver2/GoDotIno/refs/heads/main/pkg/hcsr04/v1.0.0/godotinolib.toml"
+        "1.0.0": "https://raw.githubusercontent.com/s7lver2/tsuki/refs/heads/main/pkg/hcsr04/v1.0.0/godotinolib.toml"
       }
     },
     "u8g2": {
@@ -30,7 +30,7 @@
       "author": "godotino-team",
       "latest": "1.0.0",
       "versions": {
-        "1.0.0": "https://raw.githubusercontent.com/s7lver2/GoDotIno/refs/heads/main/pkg/u8g2/v1.0.0/godotinolib.toml"
+        "1.0.0": "https://raw.githubusercontent.com/s7lver2/tsuki/refs/heads/main/pkg/u8g2/v1.0.0/godotinolib.toml"
       }
     }
   }

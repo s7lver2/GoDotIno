@@ -1,17 +1,17 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  godotino :: pkgmgr  —  install / remove / list godotinolib packages
+//  tsuki :: pkgmgr  —  install / remove / list tsukilib packages
 //
 //  Package install directory (priority order):
 //    1. config.json  libs_dir
-//    2. GODOTINO_LIBS environment variable
-//    3. OS default: ~/.local/share/godotino/libs  (Linux/macOS)
-//                   %APPDATA%\godotino\libs        (Windows)
+//    2. tsuki_LIBS environment variable
+//    3. OS default: ~/.local/share/tsuki/libs  (Linux/macOS)
+//                   %APPDATA%\tsuki\libs        (Windows)
 //
 //  Registries (priority order — first registry wins on name collision):
-//    1. GODOTINO_REGISTRY env var  (single URL, prepended)
+//    1. tsuki_REGISTRY env var  (single URL, prepended)
 //    2. config.json  registry_urls  (ordered list)
 //    3. config.json  registry_url   (legacy single-URL, backward compat)
-//    4. Built-in default (github.com/s7lver/godotino-pkgs)
+//    4. Built-in default (github.com/s7lver/tsuki-pkgs)
 //
 //  Each registry JSON may include a "key_index_url" field pointing to its
 //  own signing-key index.  The global key index in config is the fallback.
@@ -37,8 +37,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/godotino/cli/internal/config"
-	"github.com/godotino/cli/internal/ui"
+	"github.com/tsuki/cli/internal/config"
+	"github.com/tsuki/cli/internal/ui"
 )
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
@@ -48,7 +48,7 @@ func LibsDir() string {
 	if err == nil {
 		return cfg.ResolvedLibsDir()
 	}
-	if env := os.Getenv("GODOTINO_LIBS"); env != "" {
+	if env := os.Getenv("tsuki_LIBS"); env != "" {
 		return env
 	}
 	return config.Default().ResolvedLibsDir()
@@ -59,7 +59,7 @@ func PackageDir(name, version string) string {
 }
 
 func ManifestPath(name, version string) string {
-	return filepath.Join(PackageDir(name, version), "godotinolib.toml")
+	return filepath.Join(PackageDir(name, version), "tsukilib.toml")
 }
 
 func KeysDir() string {
@@ -67,7 +67,7 @@ func KeysDir() string {
 	if err == nil {
 		return cfg.ResolvedKeysDir()
 	}
-	if env := os.Getenv("GODOTINO_KEYS"); env != "" {
+	if env := os.Getenv("tsuki_KEYS"); env != "" {
 		return env
 	}
 	return config.Default().ResolvedKeysDir()
@@ -105,7 +105,7 @@ func ListInstalled() ([]InstalledPackage, error) {
 			if !v.IsDir() {
 				continue
 			}
-			mpath := filepath.Join(root, name, v.Name(), "godotinolib.toml")
+			mpath := filepath.Join(root, name, v.Name(), "tsukilib.toml")
 			if _, err := os.Stat(mpath); err != nil {
 				continue
 			}
@@ -135,7 +135,7 @@ type InstallOptions struct {
 	Version string
 }
 
-// Install fetches a godotinolib.toml, optionally verifies its Ed25519
+// Install fetches a tsukilib.toml, optionally verifies its Ed25519
 // signature, and places it in LibsDir.
 func Install(opts InstallOptions) (*InstalledPackage, error) {
 	tomlData, err := fetchTOML(opts.Source)
@@ -164,9 +164,9 @@ func Install(opts InstallOptions) (*InstalledPackage, error) {
 		return nil, fmt.Errorf("creating package dir: %w", err)
 	}
 
-	destFile := filepath.Join(destDir, "godotinolib.toml")
+	destFile := filepath.Join(destDir, "tsukilib.toml")
 	if err := os.WriteFile(destFile, []byte(tomlData), 0644); err != nil {
-		return nil, fmt.Errorf("writing godotinolib.toml: %w", err)
+		return nil, fmt.Errorf("writing tsukilib.toml: %w", err)
 	}
 
 	return &InstalledPackage{
@@ -208,7 +208,7 @@ func IsInstalled(name string) (bool, string) {
 
 // KeyIndexEntry is one entry in a keys/index.json file.
 type KeyIndexEntry struct {
-	// KeyID is an arbitrary identifier (e.g. "godotino-team").
+	// KeyID is an arbitrary identifier (e.g. "tsuki-team").
 	KeyID string `json:"key_id"`
 	// PublicKeyURL is where the PEM-encoded Ed25519 public key lives.
 	PublicKeyURL string `json:"public_key_url"`
@@ -512,7 +512,7 @@ func InstallFromRegistry(name, version string) (*InstalledPackage, error) {
 	entry, ok := packages[name]
 	if !ok {
 		return nil, fmt.Errorf(
-			"package %q not found in any registry — run `godotino pkg search` to see available packages",
+			"package %q not found in any registry — run `tsuki pkg search` to see available packages",
 			name,
 		)
 	}
@@ -542,7 +542,7 @@ func InstallFromRegistry(name, version string) (*InstalledPackage, error) {
 
 func PrintList(pkgs []InstalledPackage) {
 	if len(pkgs) == 0 {
-		ui.Info("No packages installed — run `godotino pkg install <source>` to add one")
+		ui.Info("No packages installed — run `tsuki pkg install <source>` to add one")
 		return
 	}
 
@@ -581,7 +581,7 @@ func PrintRegistryResults(entries []RegistryEntry) {
 	}
 	fmt.Println()
 
-	ui.Info("Install with: godotino pkg install <name>")
+	ui.Info("Install with: tsuki pkg install <name>")
 }
 
 // ── TOML fetch ────────────────────────────────────────────────────────────────
@@ -637,7 +637,7 @@ func parseTOMLMeta(toml string) (name, version, description, header, arduinoLib 
 		}
 	}
 	if name == "" || version == "" {
-		err = fmt.Errorf("godotinolib.toml must declare [package] name and version")
+		err = fmt.Errorf("tsukilib.toml must declare [package] name and version")
 	}
 	return
 }
@@ -692,11 +692,11 @@ func WriteLock(projectDir string, pkgs []InstalledPackage) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(projectDir, "godotino.lock"), append(data, '\n'), 0644)
+	return os.WriteFile(filepath.Join(projectDir, "tsuki.lock"), append(data, '\n'), 0644)
 }
 
 func ReadLock(projectDir string) ([]LockEntry, error) {
-	data, err := os.ReadFile(filepath.Join(projectDir, "godotino.lock"))
+	data, err := os.ReadFile(filepath.Join(projectDir, "tsuki.lock"))
 	if os.IsNotExist(err) {
 		return nil, nil
 	}
