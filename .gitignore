@@ -4,3 +4,6 @@ bin/
 test/
 Cargo.lock
 *.zip
+ide/node_modules
+ide/.next
+package-lock.json
